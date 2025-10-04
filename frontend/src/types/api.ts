@@ -1,10 +1,17 @@
 /**
- * API Types for WhatsApp Campaign Interface Improvements
+ * API Types for WhatsApp Campaign Management with GoHighLevel
  *
  * TypeScript type definitions for API requests and responses.
+ * Updated to use GoHighLevel (GHL) instead of WAHA.
  */
 
-// WAHA Session Types
+// Import GHL types
+export type { GHLLocation, GHLLocationValidation, GHLMessage, GHLConversation } from './ghl';
+
+// Legacy WAHA Session Types (deprecated)
+/**
+ * @deprecated Use GHLLocation from './ghl' instead
+ */
 export interface WAHASession {
   id: string;
   name: string;
@@ -17,10 +24,16 @@ export interface WAHASession {
   last_updated: string;
 }
 
+/**
+ * @deprecated Use GHLLocation[] instead
+ */
 export interface WAHASessionsResponse {
   sessions: WAHASession[];
 }
 
+/**
+ * @deprecated Use GHLLocationValidation instead
+ */
 export interface WAHASessionValidation {
   valid: boolean;
   session_id: string;
@@ -29,10 +42,12 @@ export interface WAHASessionValidation {
   validated_at: string;
 }
 
-// Campaign Types (Updated)
+// Campaign Types (Updated for GHL)
 export interface CampaignCreateRequest {
   name: string;
-  waha_session_id: string; // New field replacing whatsapp_channel + ghl_user_id
+  ghl_location_id: string; // GHL location ID (replaces waha_session_id)
+  ghl_user_id?: string; // Single user (backwards compat)
+  ghl_user_ids?: string[]; // Multiple users for round-robin distribution
   sending_speed: 'slow' | 'medium' | 'fast';
   schedule_type: 'immediate' | 'scheduled';
   scheduled_time?: string; // ISO datetime string
@@ -68,7 +83,8 @@ export interface CampaignResponse {
   id: string;
   name: string;
   status: 'draft' | 'scheduled' | 'executing' | 'completed' | 'failed';
-  waha_session_id: string; // New field
+  ghl_location_id: string; // GHL location ID
+  ghl_location_name?: string; // Location display name
   sending_speed: 'slow' | 'medium' | 'fast';
   schedule_type: 'immediate' | 'scheduled';
   scheduled_time?: string;
@@ -76,37 +92,54 @@ export interface CampaignResponse {
   estimated_recipients: number;
 }
 
-// Dashboard Types (Updated)
-export interface DashboardMetrics {
-  campaign_metrics: {
-    total_campaigns: number;
-    active_campaigns: number;
-    completed_campaigns: number;
-    failed_campaigns: number;
-  };
-  delivery_metrics: {
-    sent: number;
-    delivery_rate: number; // Percentage (0-100)
-    read_rate: number; // Percentage (0-100)
-  };
+// Dashboard Types (Updated to match backend API contract)
+export interface DashboardResponse {
+  campaign_metrics: CampaignMetrics;
+  delivery_metrics: DeliveryMetrics;
   recent_campaigns: RecentCampaign[];
-  top_performing_campaigns: TopPerformingCampaign[];
+  top_performing_campaigns: TopCampaign[];
+  time_range: string;
+  filter_info: string;
+}
+
+export interface CampaignMetrics {
+  total_campaigns: number;
+  draft_campaigns: number;
+  scheduled_campaigns: number;
+  active_campaigns: number;
+  completed_campaigns: number;
+  failed_campaigns: number;
+  cancelled_campaigns: number;
+}
+
+export interface DeliveryMetrics {
+  sent: number;
+  delivered: number;
+  failed: number;
+  delivery_rate: number; // Percentage (0-100)
+  read_rate: number; // Percentage (0-100)
 }
 
 export interface RecentCampaign {
-  id: string;
+  id: number;
   name: string;
-  status: 'draft' | 'scheduled' | 'executing' | 'completed' | 'failed';
+  status: 'draft' | 'scheduled' | 'executing' | 'completed' | 'failed' | 'cancelled';
   delivery_rate: number;
   created_at: string;
+  messages_sent: number;
 }
 
-export interface TopPerformingCampaign {
-  id: string;
+export interface TopCampaign {
+  id: number;
   name: string;
   delivered_count: number;
   read_rate: number;
+  delivery_rate: number;
 }
+
+// Legacy alias for backwards compatibility
+export interface DashboardMetrics extends DashboardResponse {}
+export interface TopPerformingCampaign extends TopCampaign {}
 
 // Dashboard Request Parameters (Updated)
 export interface DashboardParams {
@@ -160,7 +193,9 @@ export type WAHASessionStatus = 'WORKING' | 'STARTING' | 'SCAN_QR_CODE' | 'STOPP
 // Form Types for Frontend Components
 export interface CampaignFormData {
   name: string;
-  waha_session_id: string;
+  ghl_location_id: string; // GHL location ID (replaces waha_session_id)
+  ghl_user_id?: string; // Single user (backwards compat)
+  ghl_user_ids?: string[]; // Multiple users for round-robin
   sending_speed: SendingSpeed;
   schedule_type: ScheduleType;
   scheduled_time?: Date;

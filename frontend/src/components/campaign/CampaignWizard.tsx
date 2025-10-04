@@ -1,13 +1,14 @@
 /**
- * Campaign Wizard Component - WhatsApp Campaign Interface Improvements
+ * Campaign Wizard Component - GoHighLevel Integration
  *
- * Updated to use WAHA session dropdown instead of separate channel/user/team fields.
- * Removes GHL Team ID field and consolidates WhatsApp channel selection.
+ * Updated to use GoHighLevel (GHL) locations for WhatsApp messaging.
+ * Migrated from WAHA to GHL Conversations API.
  */
 
-import React, { useState, useEffect } from 'react';
-import { CampaignFormData, WAHASession, CampaignCreateRequest } from '../../types/api';
-import { wahaSessionService } from '../../services/waha-session-service';
+import React, { useState } from 'react';
+import Papa from 'papaparse';
+import { CampaignFormData, CampaignCreateRequest, ContactCsvData } from '../../types/api';
+import { useGHLUsers } from '../../hooks/useGHLUsers';
 
 interface CampaignWizardProps {
   onSubmit: (campaign: CampaignCreateRequest) => Promise<void>;
@@ -17,41 +18,157 @@ interface CampaignWizardProps {
 const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [sessions, setSessions] = useState<WAHASession[]>([]);
-  const [sessionsLoading, setSessionsLoading] = useState(true);
   const [formData, setFormData] = useState<CampaignFormData>({
     name: '',
-    waha_session_id: '',
+    ghl_location_id: 'Xb9gDxwxYhdqtprGcb5E',  // Fixed location ID
+    ghl_user_ids: [],  // Multiple users for round-robin
     sending_speed: 'medium',
     schedule_type: 'immediate',
     messages: [{ text: '', media_url: '' }],
-    audience_type: 'all_contacts',
+    audience_type: 'csv_upload',  // CSV como padrão
     tag_filters: { logic: 'AND', selected_tags: [] },
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [parsedContacts, setParsedContacts] = useState<ContactCsvData[]>([]);
+  const [csvParseError, setCsvParseError] = useState<string | null>(null);
 
-  // Load WAHA sessions on component mount
-  useEffect(() => {
-    loadSessions();
-  }, []);
+  // Column mapping state
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvRawData, setCsvRawData] = useState<any[]>([]);
+  const [columnMapping, setColumnMapping] = useState<{
+    phone: string;
+    name: string;
+    email: string;
+  }>({
+    phone: '',
+    name: '',
+    email: ''
+  });
+  const [showMapping, setShowMapping] = useState(false);
 
-  const loadSessions = async () => {
-    setSessionsLoading(true);
-    try {
-      const activeSessions = await wahaSessionService.getActiveSessions();
-      setSessions(activeSessions);
+  // Load users for fixed location
+  const { users, loading: usersLoading, error: usersError } = useGHLUsers({
+    locationId: formData.ghl_location_id,
+    autoFetch: true,
+  });
 
-      // Auto-select if only one active session
-      if (activeSessions.length === 1) {
-        setFormData(prev => ({
-          ...prev,
-          waha_session_id: activeSessions[0].id
-        }));
+  // Handle CSV file upload and parsing
+  const handleCsvUpload = (file: File | undefined) => {
+    if (!file) {
+      setParsedContacts([]);
+      setCsvParseError(null);
+      setCsvHeaders([]);
+      setCsvRawData([]);
+      setShowMapping(false);
+      setFormData(prev => ({ ...prev, csv_file: undefined }));
+      return;
+    }
+
+    setFormData(prev => ({ ...prev, csv_file: file }));
+    setCsvParseError(null);
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        try {
+          if (!results.meta.fields || results.meta.fields.length === 0) {
+            setCsvParseError('CSV não contém cabeçalhos (headers)');
+            return;
+          }
+
+          // Store headers and raw data
+          setCsvHeaders(results.meta.fields);
+          setCsvRawData(results.data as any[]);
+
+          // Try to auto-detect common column names
+          const headers = results.meta.fields.map(h => h.toLowerCase());
+          const autoMapping = {
+            phone: '',
+            name: '',
+            email: ''
+          };
+
+          // Auto-detect phone column
+          const phonePatterns = ['telefone', 'phone', 'celular', 'whatsapp', 'número', 'numero'];
+          const phoneCol = results.meta.fields.find((h, i) =>
+            phonePatterns.some(p => headers[i].includes(p))
+          );
+          if (phoneCol) autoMapping.phone = phoneCol;
+
+          // Auto-detect name column
+          const namePatterns = ['nome', 'name', 'contact', 'contato'];
+          const nameCol = results.meta.fields.find((h, i) =>
+            namePatterns.some(p => headers[i].includes(p))
+          );
+          if (nameCol) autoMapping.name = nameCol;
+
+          // Auto-detect email column
+          const emailPatterns = ['email', 'e-mail', 'mail'];
+          const emailCol = results.meta.fields.find((h, i) =>
+            emailPatterns.some(p => headers[i].includes(p))
+          );
+          if (emailCol) autoMapping.email = emailCol;
+
+          setColumnMapping(autoMapping);
+          setShowMapping(true);
+
+        } catch (error) {
+          setCsvParseError('Erro ao processar arquivo CSV');
+          console.error('CSV parse error:', error);
+        }
+      },
+      error: (error) => {
+        setCsvParseError(`Erro ao ler arquivo: ${error.message}`);
       }
-    } catch (error) {
-      console.error('Failed to load WAHA sessions:', error);
-    } finally {
-      setSessionsLoading(false);
+    });
+  };
+
+  // Apply column mapping to generate contacts
+  const applyColumnMapping = () => {
+    if (!columnMapping.phone) {
+      setCsvParseError('Você deve selecionar a coluna de Telefone');
+      return;
+    }
+
+    const contacts: ContactCsvData[] = [];
+    const errors: string[] = [];
+
+    csvRawData.forEach((row: any, index: number) => {
+      const phoneNumber = row[columnMapping.phone];
+      const name = columnMapping.name ? row[columnMapping.name] : '';
+      const email = columnMapping.email ? row[columnMapping.email] : '';
+
+      if (!phoneNumber) {
+        errors.push(`Linha ${index + 2}: Telefone vazio`);
+        return;
+      }
+
+      // Basic phone validation (should start with +)
+      const cleanPhone = String(phoneNumber).trim();
+      if (!cleanPhone.startsWith('+')) {
+        errors.push(`Linha ${index + 2}: Telefone deve começar com + (formato internacional): ${cleanPhone}`);
+        return;
+      }
+
+      contacts.push({
+        phone_number: cleanPhone,
+        name: name ? String(name).trim() : '',
+        email: email ? String(email).trim() : undefined,
+      });
+    });
+
+    if (errors.length > 0) {
+      setCsvParseError(`Erros encontrados:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? `\n... e mais ${errors.length - 5} erros` : ''}`);
+    }
+
+    if (contacts.length === 0) {
+      setCsvParseError('Nenhum contato válido encontrado no CSV');
+      setParsedContacts([]);
+    } else {
+      setParsedContacts(contacts);
+      setCsvParseError(null);
+      setShowMapping(false);
     }
   };
 
@@ -62,28 +179,34 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
     switch (step) {
       case 1: // Basic Info
         if (!formData.name.trim()) {
-          newErrors.name = 'Campaign name is required';
+          newErrors.name = 'Nome da campanha é obrigatório';
         }
-        if (!formData.waha_session_id) {
-          newErrors.waha_session_id = 'Please select a WhatsApp session';
+        if (!formData.ghl_user_ids || formData.ghl_user_ids.length === 0) {
+          newErrors.ghl_user_ids = 'Por favor, selecione pelo menos um usuário';
         }
         break;
 
       case 2: // Messages
-        if (formData.messages.length === 0 || !formData.messages[0].text.trim()) {
-          newErrors.messages = 'At least one message is required';
+        // At least one message with text OR media is required
+        const hasValidMessage = formData.messages.some(msg =>
+          msg.text.trim() || msg.media_url?.trim()
+        );
+
+        if (formData.messages.length === 0 || !hasValidMessage) {
+          newErrors.messages = 'Pelo menos uma mensagem (texto ou mídia) é obrigatória';
         }
         if (formData.messages.length > 3) {
-          newErrors.messages = 'Maximum 3 messages allowed';
+          newErrors.messages = 'Máximo de 3 mensagens permitidas';
         }
         break;
 
-      case 3: // Audience
-        if (formData.audience_type === 'csv_upload' && !formData.csv_file) {
-          newErrors.csv_file = 'Please upload a CSV file';
-        }
-        if (formData.audience_type === 'tag_based' && formData.tag_filters?.selected_tags.length === 0) {
-          newErrors.tags = 'Please select at least one tag';
+      case 3: // Audience - CSV Only
+        if (!formData.csv_file) {
+          newErrors.csv_file = 'Por favor, faça upload de um arquivo CSV';
+        } else if (parsedContacts.length === 0) {
+          newErrors.csv_file = 'Arquivo CSV não possui contatos válidos';
+        } else if (csvParseError) {
+          newErrors.csv_file = 'Arquivo CSV possui erros';
         }
         break;
     }
@@ -100,7 +223,8 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
     try {
       const campaignRequest: CampaignCreateRequest = {
         name: formData.name,
-        waha_session_id: formData.waha_session_id,
+        ghl_location_id: formData.ghl_location_id,  // Changed from waha_session_id
+        ghl_user_ids: formData.ghl_user_ids,  // Multiple users for round-robin
         sending_speed: formData.sending_speed,
         schedule_type: formData.schedule_type,
         scheduled_time: formData.scheduled_time?.toISOString(),
@@ -113,7 +237,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
           })),
         audience_criteria: {
           filter_type: formData.audience_type,
-          csv_data: formData.audience_type === 'csv_upload' ? [] : undefined, // Would be processed from CSV
+          csv_data: formData.audience_type === 'csv_upload' ? parsedContacts : undefined,
           tag_filters: formData.audience_type === 'tag_based' ? {
             logic: formData.tag_filters?.logic || 'AND',
             tags: formData.tag_filters?.selected_tags || [],
@@ -140,79 +264,6 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
-  // Render WAHA session selector
-  const renderSessionSelector = () => {
-    if (sessionsLoading) {
-      return (
-        <div className="animate-pulse">
-          <div className="h-10 bg-gray-200 rounded"></div>
-        </div>
-      );
-    }
-
-    if (sessions.length === 0) {
-      return (
-        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <p className="text-yellow-800">
-            No active WhatsApp sessions available. Please ensure WAHA is running and at least one session is active.
-          </p>
-          <button
-            onClick={loadSessions}
-            className="mt-2 px-3 py-1 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700"
-          >
-            Refresh Sessions
-          </button>
-        </div>
-      );
-    }
-
-    return (
-      <div>
-        <select
-          name="waha_session_id"
-          value={formData.waha_session_id}
-          onChange={(e) => setFormData(prev => ({ ...prev, waha_session_id: e.target.value }))}
-          className={`w-full px-3 py-2 border rounded-md ${errors.waha_session_id ? 'border-red-300' : 'border-gray-300'}`}
-          required
-        >
-          <option value="">Select WhatsApp Session</option>
-          {sessions.map((session) => (
-            <option key={session.id} value={session.id}>
-              {wahaSessionService.formatSessionForDisplay(session)}
-            </option>
-          ))}
-        </select>
-
-        {/* Session info display */}
-        {formData.waha_session_id && (
-          <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded" data-testid="session-info">
-            {(() => {
-              const selectedSession = sessions.find(s => s.id === formData.waha_session_id);
-              if (!selectedSession) return null;
-
-              return (
-                <div className="text-sm">
-                  <p className="font-medium text-green-800">{selectedSession.name}</p>
-                  <p className="text-green-600">
-                    Business: {selectedSession.me.pushName} • Phone: {selectedSession.me.id}
-                  </p>
-                  <p className="text-green-600">
-                    Status: {selectedSession.status} • Last updated: {new Date(selectedSession.last_updated).toLocaleString()}
-                  </p>
-                </div>
-              );
-            })()}
-          </div>
-        )}
-
-        {errors.waha_session_id && (
-          <p className="mt-1 text-sm text-red-600" data-testid="session-error">
-            {errors.waha_session_id}
-          </p>
-        )}
-      </div>
-    );
-  };
 
   return (
     <div className="max-w-2xl mx-auto p-6">
@@ -241,10 +292,10 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
           ))}
         </div>
         <div className="flex justify-between mt-2 text-xs text-gray-600">
-          <span>Basic Info</span>
-          <span>Messages</span>
-          <span>Audience</span>
-          <span>Review</span>
+          <span>Informações</span>
+          <span>Mensagens</span>
+          <span>Contatos</span>
+          <span>Revisão</span>
         </div>
       </div>
 
@@ -252,12 +303,12 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
         {/* Step 1: Basic Information */}
         {currentStep === 1 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-gray-900">Campaign Details</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Detalhes da Campanha</h2>
 
             {/* Campaign Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Campaign Name *
+                Nome da Campanha *
               </label>
               <input
                 type="text"
@@ -265,43 +316,125 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 className={`w-full px-3 py-2 border rounded-md ${errors.name ? 'border-red-300' : 'border-gray-300'}`}
-                placeholder="Enter campaign name"
+                placeholder="Digite o nome da campanha"
                 required
               />
               {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
             </div>
 
-            {/* WAHA Session Selection */}
+            {/* GHL User Selection - Dropdown Multi-select */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                WhatsApp Session *
+                Usuários (Envio Round-Robin) *
               </label>
-              {renderSessionSelector()}
+              {usersLoading ? (
+                <div className="animate-pulse">
+                  <div className="h-10 bg-gray-200 rounded"></div>
+                </div>
+              ) : usersError ? (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-800 text-sm">Erro ao carregar usuários: {usersError}</p>
+                </div>
+              ) : users.length === 0 ? (
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-yellow-800 text-sm">Nenhum usuário encontrado para esta localização</p>
+                </div>
+              ) : (
+                <div className="relative">
+                  {/* Selected users display with chips */}
+                  <div className={`min-h-[42px] w-full px-3 py-2 border rounded-md bg-white flex flex-wrap gap-2 items-center ${errors.ghl_user_ids ? 'border-red-300' : 'border-gray-300'}`}>
+                    {formData.ghl_user_ids && formData.ghl_user_ids.length > 0 ? (
+                      formData.ghl_user_ids.map((userId) => {
+                        const user = users.find(u => u.ghl_user_id === userId);
+                        return user ? (
+                          <span key={userId} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded">
+                            {user.name}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  ghl_user_ids: prev.ghl_user_ids?.filter(id => id !== userId) || []
+                                }));
+                              }}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ) : null;
+                      })
+                    ) : (
+                      <span className="text-gray-500 text-sm">Selecione os usuários...</span>
+                    )}
+                  </div>
+
+                  {/* Dropdown with checkboxes */}
+                  <details className="mt-2">
+                    <summary className="cursor-pointer px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded text-sm font-medium text-gray-700">
+                      {formData.ghl_user_ids && formData.ghl_user_ids.length > 0
+                        ? `${formData.ghl_user_ids.length} selecionado(s) - Clique para editar`
+                        : 'Clique para selecionar usuários'}
+                    </summary>
+                    <div className="mt-2 border border-gray-300 rounded-md bg-white max-h-60 overflow-y-auto">
+                      {users.map((user) => (
+                        <label
+                          key={user.ghl_user_id}
+                          className="flex items-center space-x-3 px-4 py-2 hover:bg-gray-50 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={formData.ghl_user_ids?.includes(user.ghl_user_id) || false}
+                            onChange={(e) => {
+                              const isChecked = e.target.checked;
+                              setFormData(prev => {
+                                const currentIds = prev.ghl_user_ids || [];
+                                if (isChecked) {
+                                  return { ...prev, ghl_user_ids: [...currentIds, user.ghl_user_id] };
+                                } else {
+                                  return { ...prev, ghl_user_ids: currentIds.filter(id => id !== user.ghl_user_id) };
+                                }
+                              });
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">
+                            {user.name} {user.email ? `(${user.email})` : ''}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              )}
+              {errors.ghl_user_ids && <p className="mt-1 text-sm text-red-600">{errors.ghl_user_ids}</p>}
               <p className="mt-1 text-xs text-gray-500">
-                Select the WhatsApp Business account to send from. Only active sessions are shown.
+                {formData.ghl_user_ids && formData.ghl_user_ids.length > 0
+                  ? `${formData.ghl_user_ids.length} ${formData.ghl_user_ids.length === 1 ? 'usuário' : 'usuários'}. Cada um enviará 1 mensagem por vez em ordem sequencial.`
+                  : 'Os usuários enviarão mensagens em ordem sequencial (round-robin).'}
               </p>
             </div>
 
             {/* Sending Speed */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Sending Speed
+                Velocidade de Envio
               </label>
               <select
                 value={formData.sending_speed}
                 onChange={(e) => setFormData(prev => ({ ...prev, sending_speed: e.target.value as any }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
               >
-                <option value="slow">Slow (Conservative)</option>
-                <option value="medium">Medium (Recommended)</option>
-                <option value="fast">Fast (Aggressive)</option>
+                <option value="slow">Lenta (Conservadora)</option>
+                <option value="medium">Média (Recomendada)</option>
+                <option value="fast">Rápida (Agressiva)</option>
               </select>
             </div>
 
             {/* Schedule Type */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Schedule
+                Agendamento
               </label>
               <div className="space-y-2">
                 <label className="flex items-center">
@@ -313,7 +446,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
                     onChange={(e) => setFormData(prev => ({ ...prev, schedule_type: e.target.value as any }))}
                     className="mr-2"
                   />
-                  Send immediately
+                  Enviar imediatamente
                 </label>
                 <label className="flex items-center">
                   <input
@@ -324,7 +457,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
                     onChange={(e) => setFormData(prev => ({ ...prev, schedule_type: e.target.value as any }))}
                     className="mr-2"
                   />
-                  Schedule for later
+                  Agendar para depois
                 </label>
               </div>
 
@@ -346,13 +479,13 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
         {/* Step 2: Messages */}
         {currentStep === 2 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-gray-900">Campaign Messages</h2>
-            <p className="text-sm text-gray-600">Add up to 3 messages for your campaign</p>
+            <h2 className="text-xl font-semibold text-gray-900">Mensagens da Campanha</h2>
+            <p className="text-sm text-gray-600">Adicione até 3 mensagens para sua campanha</p>
 
             {formData.messages.map((message, index) => (
               <div key={index} className="p-4 border border-gray-200 rounded-lg">
                 <div className="flex justify-between items-center mb-3">
-                  <h3 className="font-medium">Message {index + 1}</h3>
+                  <h3 className="font-medium">Mensagem {index + 1}</h3>
                   {formData.messages.length > 1 && (
                     <button
                       type="button"
@@ -362,7 +495,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
                       }}
                       className="text-red-600 hover:text-red-800 text-sm"
                     >
-                      Remove
+                      Remover
                     </button>
                   )}
                 </div>
@@ -376,8 +509,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   rows={3}
-                  placeholder="Enter your message text..."
-                  required={index === 0}
+                  placeholder="Digite o texto da mensagem (opcional se houver mídia)"
                 />
 
                 <input
@@ -389,7 +521,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
                     setFormData(prev => ({ ...prev, messages: newMessages }));
                   }}
                   className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md"
-                  placeholder="Media URL (optional)"
+                  placeholder="URL da mídia (opcional se houver texto)"
                 />
               </div>
             ))}
@@ -405,7 +537,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
                 }}
                 className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400"
               >
-                + Add Another Message
+                + Adicionar Outra Mensagem
               </button>
             )}
 
@@ -413,85 +545,200 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
           </div>
         )}
 
-        {/* Step 3: Audience */}
+        {/* Step 3: Audience - CSV Upload with Column Mapping */}
         {currentStep === 3 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-gray-900">Target Audience</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Upload de Contatos</h2>
+            <p className="text-sm text-gray-600">Faça upload de um arquivo CSV e mapeie as colunas</p>
 
             <div className="space-y-4">
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="audience_type"
-                  value="all_contacts"
-                  checked={formData.audience_type === 'all_contacts'}
-                  onChange={(e) => setFormData(prev => ({ ...prev, audience_type: e.target.value as any }))}
-                  className="mr-2"
-                />
-                All contacts
-              </label>
-
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="audience_type"
-                  value="csv_upload"
-                  checked={formData.audience_type === 'csv_upload'}
-                  onChange={(e) => setFormData(prev => ({ ...prev, audience_type: e.target.value as any }))}
-                  className="mr-2"
-                />
-                Upload CSV file
-              </label>
-
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="audience_type"
-                  value="tag_based"
-                  checked={formData.audience_type === 'tag_based'}
-                  onChange={(e) => setFormData(prev => ({ ...prev, audience_type: e.target.value as any }))}
-                  className="mr-2"
-                />
-                Filter by tags
-              </label>
-            </div>
-
-            {formData.audience_type === 'csv_upload' && (
+              {/* File Upload */}
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Arquivo CSV *
+                </label>
                 <input
                   type="file"
                   accept=".csv"
-                  onChange={(e) => setFormData(prev => ({ ...prev, csv_file: e.target.files?.[0] }))}
+                  onChange={(e) => handleCsvUpload(e.target.files?.[0])}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 />
-                {errors.csv_file && <p className="mt-1 text-sm text-red-600">{errors.csv_file}</p>}
+                <p className="mt-1 text-xs text-gray-500">
+                  Qualquer CSV com cabeçalhos. Você poderá mapear as colunas na próxima etapa.
+                </p>
               </div>
-            )}
+
+              {/* Column Mapping Interface */}
+              {showMapping && csvHeaders.length > 0 && (
+                <div className="border border-blue-200 bg-blue-50 rounded-lg p-4 space-y-4">
+                  <h3 className="font-medium text-blue-900">Mapeamento de Colunas</h3>
+                  <p className="text-sm text-blue-700">
+                    Detectamos {csvHeaders.length} colunas. Mapeie-as para os campos necessários:
+                  </p>
+
+                  {/* Phone Mapping */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Telefone (obrigatório) *
+                    </label>
+                    <select
+                      value={columnMapping.phone}
+                      onChange={(e) => setColumnMapping(prev => ({ ...prev, phone: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white"
+                    >
+                      <option value="">Selecione a coluna...</option>
+                      {csvHeaders.map((header) => (
+                        <option key={header} value={header}>
+                          {header}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Name Mapping */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nome (opcional)
+                    </label>
+                    <select
+                      value={columnMapping.name}
+                      onChange={(e) => setColumnMapping(prev => ({ ...prev, name: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white"
+                    >
+                      <option value="">Não mapear</option>
+                      {csvHeaders.map((header) => (
+                        <option key={header} value={header}>
+                          {header}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Email Mapping */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email (opcional)
+                    </label>
+                    <select
+                      value={columnMapping.email}
+                      onChange={(e) => setColumnMapping(prev => ({ ...prev, email: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white"
+                    >
+                      <option value="">Não mapear</option>
+                      {csvHeaders.map((header) => (
+                        <option key={header} value={header}>
+                          {header}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Preview First Row */}
+                  {csvRawData.length > 0 && (
+                    <div className="mt-3 p-3 bg-white border border-gray-200 rounded">
+                      <p className="text-xs font-medium text-gray-700 mb-2">Preview (primeira linha):</p>
+                      <div className="text-xs text-gray-600 space-y-1">
+                        {columnMapping.phone && (
+                          <div>
+                            <strong>Telefone:</strong> {csvRawData[0][columnMapping.phone] || '(vazio)'}
+                          </div>
+                        )}
+                        {columnMapping.name && (
+                          <div>
+                            <strong>Nome:</strong> {csvRawData[0][columnMapping.name] || '(vazio)'}
+                          </div>
+                        )}
+                        {columnMapping.email && (
+                          <div>
+                            <strong>Email:</strong> {csvRawData[0][columnMapping.email] || '(vazio)'}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Apply Button */}
+                  <button
+                    type="button"
+                    onClick={applyColumnMapping}
+                    disabled={!columnMapping.phone}
+                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    Aplicar Mapeamento
+                  </button>
+                </div>
+              )}
+
+              {/* CSV Parse Error */}
+              {csvParseError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                  <p className="text-sm text-red-800 whitespace-pre-line">{csvParseError}</p>
+                </div>
+              )}
+
+              {/* CSV Success Preview */}
+              {parsedContacts.length > 0 && !csvParseError && !showMapping && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                  <p className="text-sm font-medium text-green-800 mb-2">
+                    ✓ {parsedContacts.length} contato{parsedContacts.length !== 1 ? 's' : ''} carregado{parsedContacts.length !== 1 ? 's' : ''}
+                  </p>
+                  <div className="text-xs text-green-700 space-y-1">
+                    {parsedContacts.slice(0, 3).map((contact, idx) => (
+                      <div key={idx}>
+                        • {contact.phone_number} {contact.name ? `- ${contact.name}` : ''}
+                      </div>
+                    ))}
+                    {parsedContacts.length > 3 && (
+                      <div className="text-green-600">+ {parsedContacts.length - 3} mais...</div>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowMapping(true)}
+                    className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    Remapear colunas
+                  </button>
+                </div>
+              )}
+
+              {errors.csv_file && <p className="text-sm text-red-600">{errors.csv_file}</p>}
+            </div>
           </div>
         )}
 
         {/* Step 4: Review */}
         {currentStep === 4 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-gray-900">Review Campaign</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Revisar Campanha</h2>
 
             <div className="bg-gray-50 p-4 rounded-lg space-y-3">
               <div>
-                <span className="font-medium">Campaign:</span> {formData.name}
+                <span className="font-medium">Campanha:</span> {formData.name}
               </div>
               <div>
-                <span className="font-medium">Session:</span> {
-                  sessions.find(s => s.id === formData.waha_session_id)?.name || 'Unknown'
+                <span className="font-medium">Usuários:</span> {
+                  formData.ghl_user_ids && formData.ghl_user_ids.length > 0
+                    ? `${formData.ghl_user_ids.length} selecionado(s)`
+                    : 'Nenhum'
                 }
               </div>
               <div>
-                <span className="font-medium">Messages:</span> {formData.messages.filter(m => m.text.trim()).length}
+                <span className="font-medium">Mensagens:</span> {formData.messages.filter(m => m.text.trim()).length}
               </div>
               <div>
-                <span className="font-medium">Audience:</span> {formData.audience_type.replace('_', ' ')}
+                <span className="font-medium">Contatos:</span> {parsedContacts.length}
               </div>
               <div>
-                <span className="font-medium">Schedule:</span> {formData.schedule_type}
+                <span className="font-medium">Agendamento:</span> {
+                  formData.schedule_type === 'immediate' ? 'Enviar imediatamente' : 'Agendado'
+                }
+              </div>
+              <div>
+                <span className="font-medium">Velocidade:</span> {
+                  formData.sending_speed === 'slow' ? 'Lenta' :
+                  formData.sending_speed === 'medium' ? 'Média' : 'Rápida'
+                }
               </div>
             </div>
           </div>
@@ -506,7 +753,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
                 onClick={prevStep}
                 className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
               >
-                Previous
+                Anterior
               </button>
             )}
           </div>
@@ -517,7 +764,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
               onClick={onCancel}
               className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
             >
-              Cancel
+              Cancelar
             </button>
 
             {currentStep < 4 ? (
@@ -526,7 +773,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
                 onClick={nextStep}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
-                Next
+                Próximo
               </button>
             ) : (
               <button
@@ -535,7 +782,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
                 disabled={loading}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
               >
-                {loading ? 'Creating...' : 'Create Campaign'}
+                {loading ? 'Criando...' : 'Criar Campanha'}
               </button>
             )}
           </div>

@@ -4,31 +4,23 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Users, TrendingUp, CheckCircle } from 'lucide-react';
+import { MessageSquare, TrendingUp, CheckCircle } from 'lucide-react';
 import MetricCard from './MetricCard';
 import { CampaignStatusChart, DeliveryRateChart, VolumeMetricsChart } from './ChartComponents';
-import ActivityFeed, { ActivityItem } from './ActivityFeed';
-import QuickActions from './QuickActions';
 import { DashboardMetrics, DashboardParams } from '../../types/api';
 
 interface DashboardProps {
   defaultUserId?: string; // Optional user ID for filtering
+  onNavigateToCampaign?: () => void; // Callback para navegar para criação de campanha
+  onNavigateToManagement?: () => void; // Callback para navegar para gerenciamento de campanhas
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ defaultUserId }) => {
+const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampaign, onNavigateToManagement }) => {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userFilter, setUserFilter] = useState<string>(defaultUserId || '');
   const [timeRange, setTimeRange] = useState<number>(30);
-  const [activities, setActivities] = useState<ActivityItem[]>([]);
-
-  // Handle navigation for quick actions
-  const handleNavigate = (route: string) => {
-    // This would typically use React Router or similar
-    // For now, we'll emit a custom event that the parent can handle
-    window.dispatchEvent(new CustomEvent('navigate', { detail: { route } }));
-  };
 
   // Fetch dashboard data
   const fetchDashboardData = async (params: DashboardParams = {}) => {
@@ -48,74 +40,29 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId }) => {
         queryParams.append('days', params.days.toString());
       }
 
-      const response = await fetch(`http://localhost:8000/api/v1/analytics/dashboard?${queryParams}`);
+      // Add timeout to prevent hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+
+      const response = await fetch(`http://localhost:8000/api/v1/analytics/dashboard?${queryParams}`, {
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error('Failed to fetch dashboard data');
+        throw new Error(`Failed to fetch dashboard data: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
 
-      // Transform to expected format - data is already in the correct format from simplified backend
-      const transformedMetrics: DashboardMetrics = {
-        campaign_metrics: data.campaign_metrics || {
-          total_campaigns: 0,
-          active_campaigns: 0,
-          completed_campaigns: 0,
-          failed_campaigns: 0,
-        },
-        delivery_metrics: data.delivery_metrics || {
-          sent: 0,
-          delivery_rate: 0,
-          read_rate: 0,
-        },
-        recent_campaigns: data.recent_campaigns || [],
-        top_performing_campaigns: data.top_performing_campaigns || [],
-      };
-
-      setMetrics(transformedMetrics);
-
-      // Generate mock activity data based on campaigns
-      const mockActivities: ActivityItem[] = [
-        {
-          id: '1',
-          type: 'campaign_created',
-          title: 'Nova campanha criada',
-          description: 'Campanha "Promoção Black Friday" foi configurada',
-          timestamp: new Date(Date.now() - 2 * 60 * 1000),
-          user: { name: 'João Silva', initials: 'JS' },
-          metadata: { campaignName: 'Promoção Black Friday' }
-        },
-        {
-          id: '2',
-          type: 'session_connected',
-          title: 'Sessão WAHA conectada',
-          description: 'WhatsApp Principal está agora online',
-          timestamp: new Date(Date.now() - 5 * 60 * 1000),
-          metadata: { sessionName: 'WhatsApp Principal' }
-        },
-        {
-          id: '3',
-          type: 'campaign_sent',
-          title: 'Campanha enviada',
-          description: 'Mensagens enviadas para 150 contatos',
-          timestamp: new Date(Date.now() - 30 * 60 * 1000),
-          user: { name: 'Maria Santos', initials: 'MS' },
-          metadata: { campaignName: 'Newsletter Semanal', count: 150 }
-        },
-        {
-          id: '4',
-          type: 'campaign_delivered',
-          title: 'Alta taxa de entrega',
-          description: '98% das mensagens foram entregues',
-          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-          metadata: { campaignName: 'Newsletter Semanal' }
-        }
-      ];
-
-      setActivities(mockActivities);
+      // Set the metrics directly from the API response
+      setMetrics(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+      // Show error state when API call fails
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      console.error('Dashboard API error:', errorMessage);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -176,6 +123,29 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId }) => {
     );
   }
 
+  // Render empty state (no campaigns)
+  if (metrics && metrics.campaign_metrics.total_campaigns === 0) {
+    return (
+      <div className="p-6">
+        <div className="flex flex-col items-center justify-center min-h-[400px] bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+          <MessageSquare className="w-16 h-16 text-gray-400 mb-4" />
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">No campaigns yet</h3>
+          <p className="text-gray-600 text-center max-w-md mb-6">
+            Create your first campaign to see metrics and analytics here!
+          </p>
+          {onNavigateToCampaign && (
+            <button
+              onClick={onNavigateToCampaign}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Create First Campaign
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // Generate chart data from metrics
   const chartData = {
     campaignStatus: {
@@ -197,9 +167,9 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="w-full space-y-6">
       {/* Key Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <MetricCard
           title="Campanhas Ativas"
           value={metrics?.campaign_metrics.active_campaigns || 0}
@@ -230,54 +200,27 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId }) => {
           icon={<CheckCircle />}
           loading={loading}
         />
-        <MetricCard
-          title="Contatos Ativos"
-          value={5847}
-          previousValue={5392}
-          change={8.4}
-          changeType="increase"
-          format="number"
-          icon={<Users />}
-          loading={loading}
-        />
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Charts Section - Takes 2 columns */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Top Row Charts */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <CampaignStatusChart
-              data={chartData.campaignStatus}
-              loading={loading}
-            />
-            <DeliveryRateChart
-              data={chartData.deliveryRate}
-              loading={loading}
-            />
-          </div>
-
-          {/* Volume Chart - Full Width */}
-          <VolumeMetricsChart
-            data={chartData.volume}
+      {/* Charts Section - Full Width */}
+      <div className="space-y-6">
+        {/* Top Row Charts */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <CampaignStatusChart
+            data={chartData.campaignStatus}
+            loading={loading}
+          />
+          <DeliveryRateChart
+            data={chartData.deliveryRate}
             loading={loading}
           />
         </div>
 
-        {/* Sidebar - Takes 1 column */}
-        <div className="space-y-6">
-          {/* Quick Actions */}
-          <QuickActions onNavigate={handleNavigate} />
-
-          {/* Activity Feed */}
-          <ActivityFeed
-            activities={activities}
-            loading={loading}
-            showLoadMore={activities.length > 0}
-            onLoadMore={() => console.log('Load more activities')}
-          />
-        </div>
+        {/* Volume Chart - Full Width */}
+        <VolumeMetricsChart
+          data={chartData.volume}
+          loading={loading}
+        />
       </div>
     </div>
   );

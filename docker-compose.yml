@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: wpp_disp_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-wpp_disp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wpp_disp_password}
+      POSTGRES_DB: ${POSTGRES_DB:-wpp_disp_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wpp_disp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - wpp_disp_network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wpp_disp_backend
+    environment:
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-wpp_disp}:${POSTGRES_PASSWORD:-wpp_disp_password}@postgres:5432/${POSTGRES_DB:-wpp_disp_db}
+
+      # GoHighLevel API
+      GHL_CLIENT_ID: ${GHL_CLIENT_ID}
+      GHL_CLIENT_SECRET: ${GHL_CLIENT_SECRET}
+      GHL_REDIRECT_URI: ${GHL_REDIRECT_URI:-http://localhost:8000/ghl/oauth/callback}
+      GHL_TOKEN_ENCRYPTION_KEY: ${GHL_TOKEN_ENCRYPTION_KEY}
+      GHL_WEBHOOK_SECRET: ${GHL_WEBHOOK_SECRET}
+
+      # Application
+      DEBUG: ${DEBUG:-False}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - backend_venv:/app/venv
+    networks:
+      - wpp_disp_network
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+    container_name: wpp_disp_frontend
+    ports:
+      - "${FRONTEND_PORT:-3001}:80"
+    depends_on:
+      - backend
+    networks:
+      - wpp_disp_network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  backend_venv:
+    driver: local
+
+networks:
+  wpp_disp_network:
+    driver: bridge

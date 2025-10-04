@@ -1,11 +1,24 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Dashboard from './components/dashboard/Dashboard'
 import CampaignWizard from './components/campaign/CampaignWizard'
+import CampaignsPage from './pages/CampaignsPage'
 import Layout from './components/layout/Layout'
 import { useNavigation, usePageTitle } from './hooks/useNavigation'
 import { CampaignCreateRequest } from './types/api'
 import './index.css'
+
+// Create a client for React Query
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 30000, // 30 seconds
+    },
+  },
+})
 
 const App: React.FC = () => {
   // Use the new navigation system
@@ -58,12 +71,23 @@ const App: React.FC = () => {
   const renderContent = () => {
     switch (activeRoute) {
       case '/':
-        return <Dashboard />
-      case '/campaigns':
+        return (
+          <Dashboard
+            onNavigateToCampaign={() => setActiveRoute('/campaigns/new')}
+            onNavigateToManagement={() => setActiveRoute('/campaigns')}
+          />
+        )
+      case '/campaigns/new':
         return (
           <CampaignWizard
             onSubmit={handleCreateCampaign}
             onCancel={() => setActiveRoute('/')}
+          />
+        )
+      case '/campaigns':
+        return (
+          <CampaignsPage
+            onCreateCampaign={() => setActiveRoute('/campaigns/new')}
           />
         )
       case '/analytics':
@@ -93,7 +117,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <Layout>
+    <Layout currentRoute={activeRoute} onNavigate={setActiveRoute}>
       {renderContent()}
     </Layout>
   )
@@ -101,6 +125,8 @@ const App: React.FC = () => {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>
   </React.StrictMode>,
 )

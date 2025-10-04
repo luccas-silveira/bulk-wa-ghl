@@ -127,7 +127,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto overflow-x-hidden min-h-0">
           {navigationItems.map((item) => (
             <SidebarItem
               key={item.id}
