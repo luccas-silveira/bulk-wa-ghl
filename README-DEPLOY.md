@@ -103,7 +103,14 @@ DEBUG=False
 LOG_LEVEL=WARNING
 VITE_API_URL=https://seu-dominio.com/api
 CORS_ORIGINS=https://seu-dominio.com
+ENABLE_METRICS=true
 ```
+
+**Observabilidade:**
+
+- `LOG_LEVEL` controla a verbosidade do backend (`DEBUG`, `INFO`, `WARNING`, `ERROR`); logs já saem em JSON com correlação por request e campanha.
+- `ENABLE_METRICS` (padrão `true`) habilita o endpoint `/metrics` com métricas Prometheus de latência, taxa de erro e filas/agendamentos.
+- Envie o header `X-Request-ID` (opcional) para propagar o identificador de rastreio em toda a cadeia de logs.
 
 **Gerar chave de criptografia:**
 

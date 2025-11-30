@@ -13,6 +13,7 @@ from src.models.campaign import Campaign
 from src.models.message import Message
 from src.services.ghl_conversations_service import GHLConversationsService
 from src.services.ghl_contacts_service import GHLContactsService
+from src.logging_config import reset_campaign_context, set_campaign_context
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,7 @@ class CampaignExecutorService:
         if not campaign:
             raise ValueError(f"Campaign {campaign_id} not found")
 
+        campaign_token = set_campaign_context(campaign_id)
         logger.info(f"Starting execution of campaign {campaign_id}: {campaign.name}")
 
         # Update campaign status to executing
@@ -193,6 +195,7 @@ class CampaignExecutorService:
 
         finally:
             self.db.commit()
+            reset_campaign_context(campaign_token)
 
         return {
             'campaign_id': campaign_id,
