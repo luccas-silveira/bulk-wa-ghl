@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { MessageSquare, TrendingUp, CheckCircle } from 'lucide-react';
 import MetricCard from './MetricCard';
 import { CampaignStatusChart, DeliveryRateChart, VolumeMetricsChart } from './ChartComponents';
+import MessagingKpiPanel from './MessagingKpiPanel';
 import { DashboardMetrics, DashboardParams } from '../../types/api';
 
 interface DashboardProps {
@@ -168,6 +169,8 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
 
   return (
     <div className="w-full space-y-6">
+      <MessagingKpiPanel />
+
       {/* Key Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <MetricCard
