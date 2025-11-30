@@ -10,6 +10,7 @@ from apscheduler.triggers.date import DateTrigger
 from sqlalchemy.orm import Session
 
 from src.database import SessionLocal
+from src.metrics import campaign_queue_gauge, scheduler_jobs_gauge
 from src.models.campaign import Campaign
 from src.services.campaign_executor_service import CampaignExecutorService
 
@@ -38,6 +39,7 @@ class CampaignScheduler:
         self.scheduler.start()
         self._load_pending_campaigns()
         logger.info("Campaign Scheduler started successfully")
+        self._refresh_metrics()
 
     def shutdown(self):
         """Shutdown scheduler gracefully"""
@@ -80,6 +82,7 @@ class CampaignScheduler:
             )
 
             logger.info(f"📅 Scheduled campaign {campaign_id} for {scheduled_time}")
+            self._refresh_metrics()
 
         except Exception as e:
             logger.error(f"Failed to schedule campaign {campaign_id}: {str(e)}")
@@ -102,6 +105,7 @@ class CampaignScheduler:
                 del self.campaign_data_store[campaign_id]
 
             logger.info(f"❌ Cancelled scheduled campaign {campaign_id}")
+            self._refresh_metrics()
 
         except Exception as e:
             logger.warning(f"Failed to cancel campaign {campaign_id}: {str(e)}")
@@ -147,6 +151,7 @@ class CampaignScheduler:
 
         finally:
             db_session.close()
+            self._refresh_metrics()
 
     def _load_pending_campaigns(self):
         """
@@ -183,6 +188,7 @@ class CampaignScheduler:
 
         finally:
             db.close()
+            self._refresh_metrics()
 
     def get_scheduled_jobs(self) -> List[Dict]:
         """
@@ -203,3 +209,9 @@ class CampaignScheduler:
             })
 
         return jobs
+
+    def _refresh_metrics(self) -> None:
+        """Push scheduler and queue sizes to Prometheus gauges."""
+
+        scheduler_jobs_gauge.set(len(self.scheduler.get_jobs()))
+        campaign_queue_gauge.set(len(self.campaign_data_store))

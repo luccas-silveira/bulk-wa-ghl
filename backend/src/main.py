@@ -3,7 +3,7 @@ FastAPI Backend - WhatsApp Campaign Management with GoHighLevel Integration
 Complete API with GHL OAuth, Conversations, and Webhooks
 """
 
-from fastapi import FastAPI, Depends, BackgroundTasks
+from fastapi import FastAPI, Depends, BackgroundTasks, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from datetime import datetime
@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 import asyncio
 import logging
 import os
+import time
+import uuid
 
 # Import database
 from src.database import get_db, SessionLocal, engine
@@ -22,6 +24,14 @@ from src.models.message import Message
 # Import services
 from src.services.campaign_executor_service import CampaignExecutorService
 from src.services.campaign_scheduler import CampaignScheduler
+from src.logging_config import (
+    http_method_ctx_var,
+    request_path_ctx_var,
+    request_id_ctx_var,
+    setup_logging,
+)
+from src.metrics import api_request_errors, api_request_latency, scheduler_jobs_gauge
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 # Import GHL API routers
 from src.api.ghl_locations import router as ghl_locations_router
@@ -32,22 +42,18 @@ from src.api.ghl_users import router as ghl_users_router
 from src.api import analytics
 from src.api import campaign_management
 
+setup_logging()
 app = FastAPI(
     title="WhatsApp Campaign Management API",
     description="API with GoHighLevel integration for WhatsApp messaging",
     version="0.2.0"
 )
 
-# Configure logging
-log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(
-    level=getattr(logging, log_level),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 # Initialize Campaign Scheduler
 scheduler = CampaignScheduler()
+metrics_enabled = os.getenv("ENABLE_METRICS", "true").lower() == "true"
 
 # CORS - allow configuration via environment variable
 allowed_origins = os.getenv("CORS_ORIGINS", "http://localhost:3001,http://localhost:3000").split(",")
@@ -72,6 +78,42 @@ app.include_router(analytics.router)
 
 # Register Campaign Management API router
 app.include_router(campaign_management.router)
+
+
+# Observability middleware
+@app.middleware("http")
+async def add_request_context(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    request_token = request_id_ctx_var.set(request_id)
+    path_token = request_path_ctx_var.set(request.url.path)
+    method_token = http_method_ctx_var.set(request.method)
+
+    start_time = time.perf_counter()
+    response: Response
+
+    try:
+        response = await call_next(request)
+        return response
+    except Exception:
+        api_request_errors.labels(method=request.method, path=request.url.path, status="500").inc()
+        logger.exception("Unhandled exception during request")
+        raise
+    finally:
+        duration = time.perf_counter() - start_time
+        api_request_latency.labels(method=request.method, path=request.url.path).observe(duration)
+
+        if 'response' in locals() and response.status_code >= 400:
+            api_request_errors.labels(
+                method=request.method,
+                path=request.url.path,
+                status=str(response.status_code)
+            ).inc()
+
+        scheduler_jobs_gauge.set(len(scheduler.scheduler.get_jobs()))
+
+        request_id_ctx_var.reset(request_token)
+        request_path_ctx_var.reset(path_token)
+        http_method_ctx_var.reset(method_token)
 
 
 # Lifecycle events
@@ -127,6 +169,14 @@ async def health_check(db: Session = Depends(get_db)):
         "service": "wpp-disp-backend",
         "timestamp": datetime.now().isoformat()
     }
+
+
+if metrics_enabled:
+
+    @app.get("/metrics")
+    async def metrics_endpoint():
+        """Expose Prometheus metrics for scraping."""
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # ===== ENDPOINTS WAHA SESSIONS (NOVA IMPLEMENTAÇÃO) =====
 
