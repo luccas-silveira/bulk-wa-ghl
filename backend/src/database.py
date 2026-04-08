@@ -1,25 +1,17 @@
 """
 Database configuration and session management
 """
-import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from dotenv import load_dotenv
-
-load_dotenv()
-
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/wpp_disp_dev")
-
-# Production-ready database configuration
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+from src.config import DATABASE_URL, DEBUG, DB_POOL_SIZE, DB_MAX_OVERFLOW
 
 engine = create_engine(
     DATABASE_URL,
-    echo=DEBUG,  # Only echo SQL in debug mode
-    pool_size=10,  # Connection pool size
-    max_overflow=20,  # Max connections beyond pool_size
-    pool_pre_ping=True,  # Verify connections before using
-    pool_recycle=3600,  # Recycle connections after 1 hour
+    echo=DEBUG,
+    pool_size=DB_POOL_SIZE,
+    max_overflow=DB_MAX_OVERFLOW,
+    pool_pre_ping=True,
+    pool_recycle=3600,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

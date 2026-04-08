@@ -63,7 +63,6 @@ export function useGHLLocations(
       const errorMessage =
         err instanceof Error ? err.message : 'Failed to fetch GHL locations';
       setError(errorMessage);
-      console.error('Error fetching GHL locations:', err);
     } finally {
       setLoading(false);
     }

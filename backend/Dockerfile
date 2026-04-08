@@ -46,9 +46,9 @@ USER appuser
 # Expose port
 EXPOSE 8000
 
-# Health check
+# Health check using httpx (already in requirements, unlike requests)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/health', timeout=5)" || exit 1
+    CMD python -c "import httpx; httpx.get('http://localhost:8000/health', timeout=5)" || exit 1
 
 # Start application with gunicorn
 CMD ["gunicorn", "src.main:app", \

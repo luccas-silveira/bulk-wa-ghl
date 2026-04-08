@@ -21,6 +21,9 @@ from src.database import get_db, SessionLocal, engine
 from src.models.campaign import Campaign
 from src.models.message import Message
 
+# Import schemas
+from src.schemas.campaign import CampaignCreateRequest
+
 # Import services
 from src.services.campaign_executor_service import CampaignExecutorService
 from src.services.campaign_scheduler import CampaignScheduler
@@ -42,24 +45,37 @@ from src.api.ghl_users import router as ghl_users_router
 from src.api import analytics
 from src.api import campaign_management
 
+from contextlib import asynccontextmanager
+
 setup_logging()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: startup and shutdown logic."""
+    scheduler.start()
+    logger.info("Application started with Campaign Scheduler")
+    yield
+    scheduler.shutdown()
+    logger.info("Application shutdown complete")
+
+
 app = FastAPI(
     title="WhatsApp Campaign Management API",
     description="API with GoHighLevel integration for WhatsApp messaging",
-    version="0.2.0"
+    version="0.2.0",
+    lifespan=lifespan
 )
 
 logger = logging.getLogger(__name__)
 
 # Initialize Campaign Scheduler
 scheduler = CampaignScheduler()
-metrics_enabled = os.getenv("ENABLE_METRICS", "true").lower() == "true"
-
-# CORS - allow configuration via environment variable
-allowed_origins = os.getenv("CORS_ORIGINS", "http://localhost:3001,http://localhost:3000").split(",")
+from src.config import CORS_ORIGINS, ENABLE_METRICS
+metrics_enabled = ENABLE_METRICS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],  # Allow all methods including OPTIONS
     allow_headers=["*"],
@@ -97,7 +113,10 @@ async def add_request_context(request: Request, call_next):
     except Exception:
         api_request_errors.labels(method=request.method, path=request.url.path, status="500").inc()
         logger.exception("Unhandled exception during request")
-        raise
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Internal Server Error"}
+        )
     finally:
         duration = time.perf_counter() - start_time
         api_request_latency.labels(method=request.method, path=request.url.path).observe(duration)
@@ -116,19 +135,8 @@ async def add_request_context(request: Request, call_next):
         http_method_ctx_var.reset(method_token)
 
 
-# Lifecycle events
-@app.on_event("startup")
-async def startup_event():
-    """Start the campaign scheduler on application startup"""
-    scheduler.start()
-    logger.info("Application started with Campaign Scheduler")
 
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Shutdown the campaign scheduler gracefully"""
-    scheduler.shutdown()
-    logger.info("Application shutdown complete")
 
 
 @app.get("/")
@@ -174,8 +182,13 @@ async def health_check(db: Session = Depends(get_db)):
 if metrics_enabled:
 
     @app.get("/metrics")
-    async def metrics_endpoint():
-        """Expose Prometheus metrics for scraping."""
+    async def metrics_endpoint(request: Request):
+        """Expose Prometheus metrics for scraping. Protected by optional METRICS_TOKEN."""
+        from src.config import METRICS_TOKEN
+        if METRICS_TOKEN:
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header != f"Bearer {METRICS_TOKEN}":
+                return JSONResponse(status_code=401, content={"error": "Unauthorized"})
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # ===== ENDPOINTS WAHA SESSIONS (NOVA IMPLEMENTAÇÃO) =====
@@ -277,56 +290,27 @@ async def validate_session(session_id: str):
 
 @app.post("/campaigns")
 async def create_campaign(
-    campaign_data: dict,
+    campaign_data: CampaignCreateRequest,
     db: Session = Depends(get_db)
 ):
     """
-    POST /campaigns - Criação e execução de campanha com GHL
-    ✅ Salva campanha no banco
-    ✅ Executa envio de mensagens via GHL Conversations API
+    POST /campaigns - Create and optionally execute a campaign via GHL.
+    Validates input with Pydantic schema. Returns 422 for invalid data.
     """
+    logger.info("Campaign creation request received")
 
-    # LOG COMPLETO DO PAYLOAD
-    logger.info(f"📥 PAYLOAD RECEBIDO: {campaign_data}")
+    # Extract validated data
+    ghl_location_id = campaign_data.ghl_location_id
+    name = campaign_data.name
+    ghl_user_id = campaign_data.ghl_user_id
+    ghl_user_ids = campaign_data.ghl_user_ids
+    sending_speed = campaign_data.sending_speed
+    schedule_type = campaign_data.schedule_type
+    scheduled_time = campaign_data.scheduled_time
+    messages = [m.model_dump() for m in campaign_data.messages]
+    csv_data = [c.model_dump() for c in campaign_data.audience_criteria.csv_data]
 
-    # Validar dados necessários
-    ghl_location_id = campaign_data.get("ghl_location_id")
-    if not ghl_location_id:
-        return JSONResponse(
-            status_code=422,
-            content={
-                "error": "Validation failed",
-                "message": "ghl_location_id is required"
-            }
-        )
-
-    # Extrair dados da campanha
-    name = campaign_data.get("name", "Nova Campanha")
-    ghl_user_id = campaign_data.get("ghl_user_id")
-    ghl_user_ids = campaign_data.get("ghl_user_ids")  # NEW: Multiple users
-    sending_speed = campaign_data.get("sending_speed", "medium")
-    schedule_type = campaign_data.get("schedule_type", "immediate")
-    scheduled_time = campaign_data.get("scheduled_time")
-    messages = campaign_data.get("messages", [])
-    audience_criteria = campaign_data.get("audience_criteria", {})
-    csv_data = audience_criteria.get("csv_data", [])
-
-    # LOG DETALHADO DA EXTRAÇÃO
-    logger.info(f"📊 DADOS EXTRAÍDOS:")
-    logger.info(f"   - schedule_type: {schedule_type}")
-    logger.info(f"   - csv_data length: {len(csv_data)}")
-    logger.info(f"   - csv_data: {csv_data}")
-    logger.info(f"   - messages: {messages}")
-
-    # Validar que pelo menos uma mensagem foi fornecida
-    if not messages or len(messages) == 0:
-        return JSONResponse(
-            status_code=422,
-            content={
-                "error": "Validation failed",
-                "message": "Pelo menos uma mensagem (texto ou mídia) é obrigatória"
-            }
-        )
+    logger.info(f"Campaign data: schedule_type={schedule_type}, contacts={len(csv_data)}, messages={len(messages)}")
 
     # Parse scheduled_time if provided
     parsed_scheduled_time = None
@@ -360,8 +344,7 @@ async def create_campaign(
     db.refresh(campaign)
 
     campaign_id = campaign.id
-    logger.info(f"✅ Campaign {campaign_id} created: '{name}' with {len(csv_data)} recipients")
-    logger.info(f"DEBUG: schedule_type={schedule_type}, csv_data length={len(csv_data)}, csv_data={csv_data}")
+    logger.info(f"Campaign {campaign_id} created: '{name}' with {len(csv_data)} recipients")
 
     # Resposta da campanha criada
     campaign_response = {
@@ -378,18 +361,21 @@ async def create_campaign(
 
     # Se for execução imediata, executar em background
     # Se for agendada, agendar no scheduler
-    logger.info(f"🔍 CHECANDO CONDIÇÃO: schedule_type={schedule_type}, len(csv_data)={len(csv_data)}")
+    logger.info(f"Execution mode: schedule_type={schedule_type}, contacts={len(csv_data)}")
+
+    # Persist contacts and messages in the campaign record for resume/scheduled support
+    campaign.contacts_data = csv_data
+    campaign.messages_template = messages
+    db.commit()
 
     if schedule_type == 'immediate' and len(csv_data) > 0:
-        logger.info(f"✅ CONDIÇÃO ATENDIDA! Entrando no bloco de execução")
-        logger.info(f"🚀 Starting background execution for campaign {campaign_id}")
+        logger.info(f"Starting background execution for campaign {campaign_id}")
 
         # Executar campanha em background com nova sessão de banco
         async def execute_campaign_background():
             """Execute campaign in background with independent DB session"""
             db_session = SessionLocal()
             try:
-                logger.info(f"📤 Executing campaign {campaign_id} with {len(csv_data)} contacts")
                 executor = CampaignExecutorService(db_session)
 
                 result = await executor.execute_campaign(
@@ -398,10 +384,10 @@ async def create_campaign(
                     messages_template=messages
                 )
 
-                logger.info(f"✅ Campaign {campaign_id} completed: {result}")
+                logger.info(f"Campaign {campaign_id} completed: {result}")
 
             except Exception as e:
-                logger.error(f"❌ Error executing campaign {campaign_id}: {str(e)}", exc_info=True)
+                logger.error(f"Error executing campaign {campaign_id}: {str(e)}", exc_info=True)
             finally:
                 db_session.close()
 
@@ -410,7 +396,7 @@ async def create_campaign(
 
     elif schedule_type == 'scheduled' and parsed_scheduled_time and len(csv_data) > 0:
         # Schedule campaign for future execution
-        logger.info(f"📅 Scheduling campaign {campaign_id} for {parsed_scheduled_time}")
+        logger.info(f"Scheduling campaign {campaign_id} for {parsed_scheduled_time}")
 
         try:
             scheduler.schedule_campaign(
@@ -424,10 +410,10 @@ async def create_campaign(
             campaign.status = 'scheduled'
             db.commit()
 
-            logger.info(f"✅ Campaign {campaign_id} scheduled successfully")
+            logger.info(f"Campaign {campaign_id} scheduled successfully")
 
         except Exception as e:
-            logger.error(f"❌ Failed to schedule campaign {campaign_id}: {str(e)}")
+            logger.error(f"Failed to schedule campaign {campaign_id}: {str(e)}")
             campaign.status = 'failed'
             db.commit()
 

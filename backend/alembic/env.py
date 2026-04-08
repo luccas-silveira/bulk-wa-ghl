@@ -11,6 +11,8 @@ from alembic import context
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from src.database import Base
+# Import all models so Alembic autogenerate detects them
+import src.models  # noqa: F401
 from dotenv import load_dotenv
 
 # Load environment variables

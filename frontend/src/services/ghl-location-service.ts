@@ -4,13 +4,13 @@
  */
 
 import type { GHLLocation, GHLLocationValidation } from '../types/ghl';
+import { API_BASE_URL } from '../config/env';
 
 class GHLLocationService {
   private baseUrl: string;
 
   constructor() {
-    // Use environment variable or default to localhost
-    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    this.baseUrl = API_BASE_URL;
   }
 
   /**

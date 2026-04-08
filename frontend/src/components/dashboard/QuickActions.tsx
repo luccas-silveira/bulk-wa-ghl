@@ -67,14 +67,14 @@ const QuickActions: React.FC<QuickActionsProps> = ({
       title: 'Templates',
       description: 'Gerenciar modelos de mensagem',
       icon: <FileText className="w-4 h-4" />,
-      action: () => console.log('Templates'),
+      action: () => onNavigate('/templates'),
     },
     {
       id: 'export-data',
       title: 'Exportar Dados',
       description: 'Download de relatórios',
       icon: <Download className="w-4 h-4" />,
-      action: () => console.log('Export'),
+      action: () => onNavigate('/export'),
     },
     {
       id: 'waha-sessions',

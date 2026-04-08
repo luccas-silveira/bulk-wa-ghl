@@ -116,7 +116,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({ campaignId, onClose }
               onDelete={async () => await deleteMutation.mutateAsync()}
             />
             {onClose && (
-              <Button variant="ghost" size="sm" icon={<X />} onClick={onClose} />
+              <Button variant="ghost" size="sm" icon={<X />} onClick={onClose} aria-label="Close campaign details" />
             )}
           </div>
         </div>

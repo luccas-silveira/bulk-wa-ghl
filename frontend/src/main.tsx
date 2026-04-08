@@ -5,8 +5,11 @@ import Dashboard from './components/dashboard/Dashboard'
 import CampaignWizard from './components/campaign/CampaignWizard'
 import CampaignsPage from './pages/CampaignsPage'
 import Layout from './components/layout/Layout'
+import ErrorBoundary from './components/ErrorBoundary'
+import { ToastProvider, useToast } from './components/ui/Toast'
 import { useNavigation, usePageTitle } from './hooks/useNavigation'
 import { CampaignCreateRequest } from './types/api'
+import { API_BASE_URL } from './config/env'
 import './index.css'
 
 // Create a client for React Query
@@ -31,20 +34,22 @@ const App: React.FC = () => {
   // Set page title based on current route
   usePageTitle(activeRoute)
 
+  const { addToast } = useToast()
+
   // Listen for navigation events from dashboard components
   React.useEffect(() => {
-    const handleNavigateEvent = (event: any) => {
+    const handleNavigateEvent = (event: CustomEvent<{ route: string }>) => {
       const { route } = event.detail;
       setActiveRoute(route);
     };
 
-    window.addEventListener('navigate', handleNavigateEvent);
-    return () => window.removeEventListener('navigate', handleNavigateEvent);
+    window.addEventListener('navigate', handleNavigateEvent as EventListener);
+    return () => window.removeEventListener('navigate', handleNavigateEvent as EventListener);
   }, [setActiveRoute]);
 
   const handleCreateCampaign = async (campaignData: CampaignCreateRequest) => {
     try {
-      const response = await fetch('http://localhost:8000/campaigns', {
+      const response = await fetch(`${API_BASE_URL}/campaigns`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -57,14 +62,11 @@ const App: React.FC = () => {
       }
 
       const result = await response.json()
-      console.log('Campaign created:', result)
-
       // Return to dashboard after successful creation
       setActiveRoute('/')
-      alert('Campanha criada com sucesso!')
+      addToast({ type: 'success', title: 'Campanha criada com sucesso!' })
     } catch (error) {
-      console.error('Error creating campaign:', error)
-      alert('Erro ao criar campanha. Tente novamente.')
+      addToast({ type: 'error', title: 'Erro ao criar campanha', message: 'Tente novamente.' })
     }
   }
 
@@ -125,8 +127,12 @@ const App: React.FC = () => {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <App />
+        </ToastProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 )

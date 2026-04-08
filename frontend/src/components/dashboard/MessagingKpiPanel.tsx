@@ -247,7 +247,7 @@ const MessagingKpiPanel: React.FC = () => {
             variant="ghost"
             onClick={() => refetch()}
             disabled={isFetching}
-            leftIcon={<RefreshCcw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />}
+            icon={<RefreshCcw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />}
             aria-label="Atualizar KPIs"
           >
             Atualizar

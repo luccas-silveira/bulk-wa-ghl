@@ -120,9 +120,9 @@ async def pause_campaign(
         Success message and updated campaign data
     """
     try:
-        # Get campaign
+        # Get campaign with row-level lock to prevent race conditions
         from src.models.campaign import Campaign
-        campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+        campaign = db.query(Campaign).filter(Campaign.id == campaign_id).with_for_update().first()
 
         if not campaign:
             raise HTTPException(status_code=404, detail={"error": "Not found", "message": f"Campaign with id {campaign_id} not found"})
@@ -168,16 +168,14 @@ async def resume_campaign(
     db: Session = Depends(get_db)
 ):
     """
-    Resume a paused campaign
-
-    LIMITATION: Due to original contact list not being stored, this endpoint
-    will mark the campaign as completed instead of re-executing it.
+    Resume a paused campaign from where it left off.
+    Re-executes only contacts that haven't been sent to yet.
 
     Path Parameters:
     - campaign_id: Campaign ID
 
     Returns:
-        Success message and campaign statistics
+        Success message and campaign execution results
     """
     try:
         # Get campaign
@@ -203,8 +201,9 @@ async def resume_campaign(
         executor = CampaignExecutorService(db)
         result = await executor.resume_campaign(campaign_id)
 
+        db.refresh(campaign)
         return {
-            "message": "Campaign marked as completed (resume functionality limited)",
+            "message": "Campaign resumed successfully",
             "details": result,
             "campaign": campaign.to_dict()
         }

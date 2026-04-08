@@ -53,7 +53,7 @@ class Message(Base):
     # GHL integration fields (NEW)
     ghl_conversation_id = Column(String(50), nullable=True, index=True)
     ghl_message_id = Column(String(50), nullable=True, unique=True, index=True)
-    ghl_status = Column(String(50), nullable=True)
+    ghl_status = Column(String(50), nullable=True, index=True)
 
     # Relationship to Campaign
     campaign = relationship("Campaign", back_populates="messages")
@@ -65,6 +65,7 @@ class Message(Base):
         Index('idx_messages_recipient', 'recipient_phone'),
         Index('idx_messages_ghl_conversation', 'ghl_conversation_id'),
         Index('idx_messages_ghl_message_id', 'ghl_message_id'),
+        Index('idx_messages_ghl_status', 'ghl_status'),
     )
 
     def __repr__(self):

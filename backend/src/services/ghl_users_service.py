@@ -4,8 +4,10 @@ Handles fetching users from GoHighLevel API
 """
 import os
 import httpx
+import logging
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from dotenv import load_dotenv
 from src.models.ghl_user import GHLUser
 
@@ -28,6 +30,11 @@ class GHLUsersService:
             from src.services.ghl_oauth_service import GHLOAuthService
             self.oauth_service = GHLOAuthService(db)
 
+    @retry(
+        retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.RequestError)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10)
+    )
     async def fetch_users_from_api(self, location_id: str) -> List[Dict]:
         """
         Fetch users from GHL API for a specific location

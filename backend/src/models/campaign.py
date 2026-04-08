@@ -3,6 +3,7 @@ Campaign Model
 Represents a WhatsApp message campaign
 """
 from sqlalchemy import Column, Integer, String, TIMESTAMP, ForeignKey, Index, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from src.database import Base
@@ -54,6 +55,10 @@ class Campaign(Base):
     ghl_user_id = Column(String(50), nullable=True, index=True)  # Primary user (backwards compat)
     ghl_user_name = Column(String(255), nullable=True)  # Cached user name
     ghl_user_ids = Column(Text, nullable=True)  # JSON array of user IDs for multi-user round-robin
+
+    # Persisted campaign data for scheduled campaigns and resume support
+    contacts_data = Column(JSONB, nullable=True)  # CSV contact list for scheduled/resumable campaigns
+    messages_template = Column(JSONB, nullable=True)  # Message templates for scheduled/resumable campaigns
 
     # Relationship to GHLLocation
     ghl_location = relationship("GHLLocation", backref="campaigns", foreign_keys=[ghl_location_id])

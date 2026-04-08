@@ -2,10 +2,9 @@
  * useGHLUsers Hook
  * React hook for fetching and managing GHL users
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { GHLUser } from '../types/ghl';
-
-const API_BASE_URL = 'http://localhost:8000';
+import { API_BASE_URL } from '../config/env';
 
 interface UseGHLUsersOptions {
   locationId?: string;
@@ -30,7 +29,7 @@ export function useGHLUsers(options: UseGHLUsersOptions = {}): UseGHLUsersReturn
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     if (!locationId) {
       setUsers([]);
       return;
@@ -56,17 +55,16 @@ export function useGHLUsers(options: UseGHLUsersOptions = {}): UseGHLUsersReturn
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setError(errorMessage);
-      console.error('Error fetching GHL users:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [locationId, sync]);
 
   useEffect(() => {
     if (autoFetch && locationId) {
       fetchUsers();
     }
-  }, [locationId, sync, autoFetch]);
+  }, [locationId, autoFetch, fetchUsers]);
 
   return {
     users,

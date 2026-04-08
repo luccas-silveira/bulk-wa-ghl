@@ -68,16 +68,19 @@ export const useNavigation = (initialRoute: string = '/'): UseNavigationReturn =
       const isMobileSize = window.innerWidth < 1024;
       setIsMobile(isMobileSize);
 
-      // Auto-collapse sidebar on mobile
-      if (isMobileSize && !sidebarCollapsed) {
-        setSidebarCollapsed(true);
+      // Auto-collapse sidebar on mobile (guard to only set if not already collapsed)
+      if (isMobileSize) {
+        setSidebarCollapsed(prev => {
+          if (!prev) return true;
+          return prev;
+        });
       }
     };
 
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-  }, [sidebarCollapsed]);
+  }, []);
 
   // Generate breadcrumbs based on current route
   const breadcrumbs = useMemo(() => {

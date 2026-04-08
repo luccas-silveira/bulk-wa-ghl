@@ -221,7 +221,8 @@ class CampaignManagementService:
             if 'status' in filters:
                 query = query.filter(Message.status == filters['status'])
             if 'recipient' in filters:
-                query = query.filter(Message.recipient_phone.like(f"%{filters['recipient']}%"))
+                escaped = filters['recipient'].replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                query = query.filter(Message.recipient_phone.like(f"%{escaped}%", escape="\\"))
 
         # Order by sent_at DESC, apply pagination
         messages = query.order_by(Message.sent_at.desc()).limit(limit).offset(offset).all()
@@ -292,19 +293,21 @@ class CampaignManagementService:
         recent_campaigns_query = campaign_query.order_by(Campaign.created_at.desc()).limit(10).all()
         recent_campaigns = [c.to_dict() for c in recent_campaigns_query]
 
-        # Top 10 performing campaigns by read rate
+        # Top 10 performing campaigns by read rate (single query instead of N+1)
         top_performers = []
         if campaign_ids:
-            # Calculate read rate for each campaign
-            for campaign in campaign_query.all():
-                msg_stats = self.db.query(
-                    func.count(Message.id).label('total'),
-                    func.sum(case((Message.status == 'read', 1), else_=0)).label('read')
-                ).filter(Message.campaign_id == campaign.id).first()
+            campaign_stats = self.db.query(
+                Campaign,
+                func.count(Message.id).label('total'),
+                func.sum(case((Message.status == 'read', 1), else_=0)).label('read')
+            ).outerjoin(Message, Message.campaign_id == Campaign.id).filter(
+                Campaign.id.in_(campaign_ids)
+            ).group_by(Campaign.id).all()
 
-                total = msg_stats.total or 0
-                read = msg_stats.read or 0
-                read_rate = round((read / total * 100), 2) if total > 0 else 0.0
+            for campaign, total, read_count in campaign_stats:
+                total = total or 0
+                read_count = read_count or 0
+                read_rate = round((read_count / total * 100), 2) if total > 0 else 0.0
 
                 campaign_dict = campaign.to_dict()
                 campaign_dict['read_rate'] = read_rate

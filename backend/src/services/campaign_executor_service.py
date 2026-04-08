@@ -65,7 +65,7 @@ class CampaignExecutorService:
         Returns:
             Dictionary with execution summary
         """
-        campaign = self.db.query(Campaign).filter(Campaign.id == campaign_id).first()
+        campaign = self.db.query(Campaign).filter(Campaign.id == campaign_id).with_for_update().first()
         if not campaign:
             raise ValueError(f"Campaign {campaign_id} not found")
 
@@ -168,9 +168,20 @@ class CampaignExecutorService:
                             self.db.commit()
 
                 except Exception as e:
-                    # Failed to get/create contact
+                    # Failed to get/create contact - record the failure
                     failed_sends += 1
-                    logger.error(f"✗ Failed to prepare contact {phone_number}: {str(e)}")
+                    logger.error(f"Failed to prepare contact {phone_number}: {str(e)}")
+                    for msg_template in messages_template:
+                        failed_message = Message(
+                            campaign_id=campaign_id,
+                            recipient_phone=phone_number or 'unknown',
+                            content=msg_template.get('text', ''),
+                            media_url=msg_template.get('media_url'),
+                            status='failed',
+                            error_message=f"Contact preparation failed: {str(e)}"
+                        )
+                        self.db.add(failed_message)
+                    self.db.commit()
 
                 # Move to next user in round-robin sequence
                 user_index += 1
@@ -189,7 +200,10 @@ class CampaignExecutorService:
 
         except Exception as e:
             # Mark campaign as failed
-            campaign.status = 'failed'
+            self.db.rollback()
+            campaign = self.db.query(Campaign).filter(Campaign.id == campaign_id).first()
+            if campaign:
+                campaign.status = 'failed'
             logger.error(f"Campaign {campaign_id} failed: {str(e)}")
             raise
 
@@ -279,11 +293,9 @@ class CampaignExecutorService:
 
     async def resume_campaign(self, campaign_id: int) -> Dict:
         """
-        Resume a paused campaign from where it left off
-
-        LIMITATION: Cannot resume campaigns - original contact list and message templates
-        are not stored in the database. This method will mark the campaign as completed
-        to clear the inconsistent state.
+        Resume a paused campaign from where it left off.
+        Uses persisted contacts_data and messages_template to re-execute
+        only the contacts that haven't been sent to yet.
 
         Args:
             campaign_id: Campaign database ID
@@ -291,28 +303,54 @@ class CampaignExecutorService:
         Returns:
             Dictionary with execution summary
         """
-        campaign = self.db.query(Campaign).filter(Campaign.id == campaign_id).first()
+        campaign = self.db.query(Campaign).filter(Campaign.id == campaign_id).with_for_update().first()
         if not campaign:
             raise ValueError(f"Campaign {campaign_id} not found")
 
-        logger.warning(f"Resume requested for campaign {campaign_id}, but resume is not fully implemented")
-        logger.info(f"Marking campaign {campaign_id} as completed to clear inconsistent state")
+        # Check if we have persisted data to resume from
+        if not campaign.contacts_data or not campaign.messages_template:
+            logger.warning(f"Campaign {campaign_id} has no persisted data, marking as completed")
+            campaign.status = 'completed'
+            self.db.commit()
+            return {
+                'campaign_id': campaign_id,
+                'status': 'completed',
+                'message': 'No persisted data available for resume'
+            }
 
-        # Mark as completed since we cannot re-execute
-        campaign.status = 'completed'
-        self.db.commit()
+        # Find phones that already received messages
+        sent_phones = set()
+        existing_messages = self.db.query(Message.recipient_phone).filter(
+            Message.campaign_id == campaign_id,
+            Message.status.in_(['sent', 'delivered', 'read'])
+        ).all()
+        for (phone,) in existing_messages:
+            sent_phones.add(phone)
 
-        # Get statistics
-        messages = self.db.query(Message).filter(Message.campaign_id == campaign_id).all()
-        successful = len([m for m in messages if m.status == 'sent'])
-        failed = len([m for m in messages if m.status == 'failed'])
+        # Filter contacts to only those not yet sent
+        remaining_contacts = [
+            c for c in campaign.contacts_data
+            if c.get('phone_number') not in sent_phones
+        ]
 
-        return {
-            'campaign_id': campaign_id,
-            'status': 'completed',
-            'total_contacts': len(messages),
-            'successful_sends': successful,
-            'failed_sends': failed,
-            'completion_rate': (successful / len(messages) * 100) if messages else 0,
-            'message': 'Campaign marked as completed (resume not fully implemented)'
-        }
+        if not remaining_contacts:
+            logger.info(f"Campaign {campaign_id}: all contacts already sent, marking completed")
+            campaign.status = 'completed'
+            self.db.commit()
+            return {
+                'campaign_id': campaign_id,
+                'status': 'completed',
+                'remaining_contacts': 0,
+                'message': 'All contacts already sent'
+            }
+
+        logger.info(f"Resuming campaign {campaign_id}: {len(remaining_contacts)} contacts remaining")
+
+        # Re-execute with remaining contacts
+        result = await self.execute_campaign(
+            campaign_id=campaign_id,
+            contacts=remaining_contacts,
+            messages_template=campaign.messages_template
+        )
+
+        return result

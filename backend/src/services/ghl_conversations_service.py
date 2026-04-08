@@ -2,6 +2,7 @@
 GHL Conversations Service
 Handles WhatsApp message sending through GoHighLevel Conversations API
 """
+import asyncio
 import os
 import httpx
 import logging
@@ -87,7 +88,7 @@ class GHLConversationsService:
     """
 
     API_BASE_URL = "https://services.leadconnectorhq.com"
-    API_VERSION = "2021-07-28"
+    API_VERSION = os.getenv("GHL_API_VERSION", "2021-07-28")
 
     def __init__(self, db: Session):
         """
@@ -108,12 +109,12 @@ class GHLConversationsService:
 
         self.rate_limiter = TokenBucket(capacity=120, refill_rate=2.0)
 
-    def _wait_for_rate_limit(self):
+    async def _wait_for_rate_limit(self):
         """Wait if rate limit is exceeded"""
         if not self.rate_limiter.consume():
             wait_time = self.rate_limiter.wait_time()
             if wait_time > 0:
-                time.sleep(wait_time)
+                await asyncio.sleep(wait_time)
                 self.rate_limiter.consume()
 
     @retry(
@@ -153,7 +154,7 @@ class GHLConversationsService:
             raise ValueError("Either message_text or media_url must be provided")
 
         # Apply rate limiting
-        self._wait_for_rate_limit()
+        await self._wait_for_rate_limit()
 
         # Get access token (private token or OAuth)
         if self.use_private_token:
@@ -219,7 +220,7 @@ class GHLConversationsService:
         Returns:
             Dictionary with conversation details
         """
-        self._wait_for_rate_limit()
+        await self._wait_for_rate_limit()
 
         # Get access token (private token or OAuth)
         if self.use_private_token:
@@ -261,7 +262,7 @@ class GHLConversationsService:
         Returns:
             List of conversation dictionaries
         """
-        self._wait_for_rate_limit()
+        await self._wait_for_rate_limit()
 
         # Get access token (private token or OAuth)
         if self.use_private_token:
@@ -302,7 +303,7 @@ class GHLConversationsService:
         Returns:
             Dictionary with message status details
         """
-        self._wait_for_rate_limit()
+        await self._wait_for_rate_limit()
 
         # Get access token (private token or OAuth)
         if self.use_private_token:

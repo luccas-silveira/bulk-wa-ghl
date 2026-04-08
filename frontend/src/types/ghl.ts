@@ -23,7 +23,7 @@ export interface GHLLocation {
   whatsapp_number?: string;
   whatsapp_status?: 'active' | 'inactive' | 'pending' | 'error';
   is_active: boolean;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }

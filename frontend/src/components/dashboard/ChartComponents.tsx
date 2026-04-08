@@ -199,7 +199,7 @@ export const DeliveryRateChart: React.FC<DeliveryRateChartProps> = ({
           color: 'rgba(0, 0, 0, 0.05)',
         },
         ticks: {
-          callback: function(value: any) {
+          callback: function(value: string | number) {
             return value + '%';
           },
           font: {

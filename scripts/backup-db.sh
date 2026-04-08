@@ -12,9 +12,11 @@ BACKUP_DIR="/var/backups/wpp-disp/postgres"
 DATE=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="wpp_disp_backup_${DATE}.sql.gz"
 
-# Load environment variables
+# Load environment variables safely
 if [ -f .env ]; then
-    export $(grep -v '^#' .env | xargs)
+    set -a
+    source .env
+    set +a
 fi
 
 # Ensure backup directory exists

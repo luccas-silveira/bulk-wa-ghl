@@ -85,7 +85,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({
       case 'session_disconnected':
         return <Badge variant="error" size="sm">Desconectado</Badge>;
       default:
-        return <Badge variant="secondary" size="sm">Atividade</Badge>;
+        return <Badge variant="gray" size="sm">Atividade</Badge>;
     }
   };
 

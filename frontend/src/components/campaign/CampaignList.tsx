@@ -42,6 +42,8 @@ const CampaignList: React.FC<CampaignListProps> = ({
   const { data, isLoading, error } = useQuery({
     queryKey: ['campaigns', debouncedFilters, limit, page],
     queryFn: () => campaignService.listCampaigns(debouncedFilters, limit, page * limit),
+    retry: 2,
+    staleTime: 30000,
   });
 
   // Pause mutation
@@ -267,6 +269,7 @@ const CampaignList: React.FC<CampaignListProps> = ({
               icon={<ChevronLeft />}
               onClick={() => setPage(p => Math.max(0, p - 1))}
               disabled={page === 0}
+              aria-label="Previous page"
             >
               Anterior
             </Button>
@@ -296,6 +299,7 @@ const CampaignList: React.FC<CampaignListProps> = ({
               iconPosition="right"
               onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
               disabled={page >= totalPages - 1}
+              aria-label="Next page"
             >
               Próxima
             </Button>

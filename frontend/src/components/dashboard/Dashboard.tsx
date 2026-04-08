@@ -3,12 +3,13 @@
  * GoHighLevel-style modern dashboard with comprehensive components
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { MessageSquare, TrendingUp, CheckCircle } from 'lucide-react';
 import MetricCard from './MetricCard';
 import { CampaignStatusChart, DeliveryRateChart, VolumeMetricsChart } from './ChartComponents';
 import MessagingKpiPanel from './MessagingKpiPanel';
 import { DashboardMetrics, DashboardParams } from '../../types/api';
+import { API_BASE_URL } from '../../config/env';
 
 interface DashboardProps {
   defaultUserId?: string; // Optional user ID for filtering
@@ -24,7 +25,7 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
   const [timeRange, setTimeRange] = useState<number>(30);
 
   // Fetch dashboard data
-  const fetchDashboardData = async (params: DashboardParams = {}) => {
+  const fetchDashboardData = useCallback(async (params: DashboardParams = {}) => {
     setLoading(true);
     setError(null);
 
@@ -45,7 +46,7 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-      const response = await fetch(`http://localhost:8000/api/v1/analytics/dashboard?${queryParams}`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/analytics/dashboard?${queryParams}`, {
         signal: controller.signal,
       });
 
@@ -62,12 +63,11 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
     } catch (err) {
       // Show error state when API call fails
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-      console.error('Dashboard API error:', errorMessage);
       setError(errorMessage);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Load dashboard data on component mount
   useEffect(() => {
@@ -75,7 +75,7 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
       ghl_user_id: userFilter || undefined,
       days: timeRange,
     });
-  }, [userFilter, timeRange]);
+  }, [userFilter, timeRange, fetchDashboardData]);
 
   // Handle user filter change
   const handleUserFilterChange = (userId: string) => {
@@ -148,7 +148,7 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
   }
 
   // Generate chart data from metrics
-  const chartData = {
+  const chartData = useMemo(() => ({
     campaignStatus: {
       sent: metrics?.delivery_metrics.sent || 0,
       delivered: Math.floor((metrics?.delivery_metrics.sent || 0) * (metrics?.delivery_metrics.delivery_rate || 0) / 100),
@@ -165,7 +165,7 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
       sent: [1200, 1900, 3000, 5000, 4200, 3800],
       delivered: [1140, 1805, 2850, 4750, 3990, 3610]
     }
-  };
+  }), [metrics]);
 
   return (
     <div className="w-full space-y-6">

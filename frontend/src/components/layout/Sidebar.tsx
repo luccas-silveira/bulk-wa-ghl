@@ -116,6 +116,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               size="sm"
               onClick={onToggleCollapse}
               className="p-1.5 hover:bg-gray-100"
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
               {collapsed ? (
                 <ChevronRight className="w-4 h-4" />
@@ -192,7 +193,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   if (collapsed) {
     return (
       <div className="relative group">
-        <button className={itemClasses} onClick={handleClick}>
+        <button className={itemClasses} onClick={handleClick} aria-label={item.label}>
           {React.cloneElement(item.icon as React.ReactElement, {
             className: 'w-5 h-5'
           })}

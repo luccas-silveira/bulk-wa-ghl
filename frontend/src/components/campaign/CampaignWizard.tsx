@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import Papa from 'papaparse';
-import { CampaignFormData, CampaignCreateRequest, ContactCsvData } from '../../types/api';
+import { CampaignFormData, CampaignCreateRequest, ContactCsvData, SendingSpeed, ScheduleType } from '../../types/api';
 import { useGHLUsers } from '../../hooks/useGHLUsers';
 
 interface CampaignWizardProps {
@@ -20,7 +20,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CampaignFormData>({
     name: '',
-    ghl_location_id: 'Xb9gDxwxYhdqtprGcb5E',  // Fixed location ID
+    ghl_location_id: '',
     ghl_user_ids: [],  // Multiple users for round-robin
     sending_speed: 'medium',
     schedule_type: 'immediate',
@@ -34,7 +34,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
 
   // Column mapping state
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
-  const [csvRawData, setCsvRawData] = useState<any[]>([]);
+  const [csvRawData, setCsvRawData] = useState<Record<string, string>[]>([]);
   const [columnMapping, setColumnMapping] = useState<{
     phone: string;
     name: string;
@@ -53,6 +53,9 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
   });
 
   // Handle CSV file upload and parsing
+  const MAX_CSV_SIZE_MB = 10;
+  const MAX_CONTACT_COUNT = 10_000;
+
   const handleCsvUpload = (file: File | undefined) => {
     if (!file) {
       setParsedContacts([]);
@@ -61,6 +64,11 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
       setCsvRawData([]);
       setShowMapping(false);
       setFormData(prev => ({ ...prev, csv_file: undefined }));
+      return;
+    }
+
+    if (file.size > MAX_CSV_SIZE_MB * 1024 * 1024) {
+      setCsvParseError(`Arquivo excede o limite de ${MAX_CSV_SIZE_MB}MB`);
       return;
     }
 
@@ -77,9 +85,14 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
             return;
           }
 
+          if (results.data.length > MAX_CONTACT_COUNT) {
+            setCsvParseError(`CSV contém ${results.data.length} linhas, excedendo o limite de ${MAX_CONTACT_COUNT.toLocaleString()} contatos`);
+            return;
+          }
+
           // Store headers and raw data
           setCsvHeaders(results.meta.fields);
-          setCsvRawData(results.data as any[]);
+          setCsvRawData(results.data as Record<string, string>[]);
 
           // Try to auto-detect common column names
           const headers = results.meta.fields.map(h => h.toLowerCase());
@@ -115,7 +128,6 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
 
         } catch (error) {
           setCsvParseError('Erro ao processar arquivo CSV');
-          console.error('CSV parse error:', error);
         }
       },
       error: (error) => {
@@ -134,7 +146,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
     const contacts: ContactCsvData[] = [];
     const errors: string[] = [];
 
-    csvRawData.forEach((row: any, index: number) => {
+    csvRawData.forEach((row: Record<string, string>, index: number) => {
       const phoneNumber = row[columnMapping.phone];
       const name = columnMapping.name ? row[columnMapping.name] : '';
       const email = columnMapping.email ? row[columnMapping.email] : '';
@@ -246,8 +258,8 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
       };
 
       await onSubmit(campaignRequest);
-    } catch (error) {
-      console.error('Failed to create campaign:', error);
+    } catch {
+      // Error is handled by the parent via onSubmit rejection
     } finally {
       setLoading(false);
     }
@@ -422,7 +434,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
               </label>
               <select
                 value={formData.sending_speed}
-                onChange={(e) => setFormData(prev => ({ ...prev, sending_speed: e.target.value as any }))}
+                onChange={(e) => setFormData(prev => ({ ...prev, sending_speed: e.target.value as SendingSpeed }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
               >
                 <option value="slow">Lenta (Conservadora)</option>
@@ -443,7 +455,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
                     name="schedule_type"
                     value="immediate"
                     checked={formData.schedule_type === 'immediate'}
-                    onChange={(e) => setFormData(prev => ({ ...prev, schedule_type: e.target.value as any }))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, schedule_type: e.target.value as ScheduleType }))}
                     className="mr-2"
                   />
                   Enviar imediatamente
@@ -454,7 +466,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
                     name="schedule_type"
                     value="scheduled"
                     checked={formData.schedule_type === 'scheduled'}
-                    onChange={(e) => setFormData(prev => ({ ...prev, schedule_type: e.target.value as any }))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, schedule_type: e.target.value as ScheduleType }))}
                     className="mr-2"
                   />
                   Agendar para depois

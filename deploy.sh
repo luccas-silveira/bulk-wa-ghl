@@ -68,7 +68,7 @@ fi
 
 # Build and deploy
 echo "🏗️  Building Docker images..."
-docker-compose $COMPOSE_FILES build --no-cache
+docker-compose $COMPOSE_FILES build
 
 echo ""
 echo "🚀 Starting services..."
@@ -78,9 +78,15 @@ echo ""
 echo "⏳ Waiting for services to start..."
 sleep 10
 
-# Run migrations
+# Run migrations with rollback on failure
 echo "🔄 Running database migrations..."
-./scripts/migrate-db.sh
+if ! ./scripts/migrate-db.sh; then
+    echo ""
+    echo -e "${RED}❌ Migration failed! Rolling back...${NC}"
+    docker-compose $COMPOSE_FILES down
+    echo "Services stopped. Please fix the migration and redeploy."
+    exit 1
+fi
 
 echo ""
 echo "🏥 Running health checks..."
