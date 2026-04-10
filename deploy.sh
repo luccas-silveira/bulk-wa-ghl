@@ -38,6 +38,28 @@ if [ ! -f "$ENV_FILE" ]; then
     exit 1
 fi
 
+# Validate required environment variables
+echo "🔑 Validating required environment variables..."
+source "$ENV_FILE"
+
+MISSING_VARS=()
+for VAR in POSTGRES_PASSWORD GHL_CLIENT_ID GHL_CLIENT_SECRET GHL_TOKEN_ENCRYPTION_KEY GHL_WEBHOOK_SECRET GHL_REDIRECT_URI; do
+    if [ -z "${!VAR}" ]; then
+        MISSING_VARS+=("$VAR")
+    fi
+done
+
+if [ ${#MISSING_VARS[@]} -ne 0 ]; then
+    echo -e "${RED}❌ Missing required environment variables:${NC}"
+    for VAR in "${MISSING_VARS[@]}"; do
+        echo "   - $VAR"
+    done
+    echo "Set these in $ENV_FILE before deploying."
+    exit 1
+fi
+echo -e "${GREEN}✅ All required environment variables are set${NC}"
+echo ""
+
 # Check Docker
 if ! command -v docker &> /dev/null; then
     echo -e "${RED}❌ Docker is not installed!${NC}"

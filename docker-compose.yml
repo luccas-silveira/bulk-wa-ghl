@@ -7,11 +7,10 @@ services:
     container_name: wpp_disp_postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-wpp_disp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wpp_disp_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required — set it in your .env file}
       POSTGRES_DB: ${POSTGRES_DB:-wpp_disp_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
