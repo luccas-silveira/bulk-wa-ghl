@@ -6,7 +6,7 @@ Complete API with GHL OAuth, Conversations, and Webhooks
 from fastapi import FastAPI, Depends, BackgroundTasks, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 import asyncio
 import logging
@@ -35,6 +35,7 @@ from src.logging_config import (
 )
 from src.metrics import api_request_errors, api_request_latency, scheduler_jobs_gauge
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from src.config import CORS_ORIGINS, ENABLE_METRICS, GHL_ENABLED, DEBUG
 
 # Import GHL API routers
 from src.api.ghl_locations import router as ghl_locations_router
@@ -53,6 +54,11 @@ setup_logging()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown logic."""
+    if DEBUG:
+        logger.warning(
+            "DEBUG mode is enabled — SQL queries will be logged. "
+            "Disable DEBUG in production."
+        )
     scheduler.start()
     logger.info("Application started with Campaign Scheduler")
     yield
@@ -71,28 +77,26 @@ logger = logging.getLogger(__name__)
 
 # Initialize Campaign Scheduler
 scheduler = CampaignScheduler()
-from src.config import CORS_ORIGINS, ENABLE_METRICS
 metrics_enabled = ENABLE_METRICS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods including OPTIONS
-    allow_headers=["*"],
-    expose_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+    expose_headers=["X-Request-ID"],
 )
 
-# Register GHL API routers
-app.include_router(ghl_locations_router)
-app.include_router(ghl_oauth_router)
-app.include_router(ghl_messages_router)
-app.include_router(ghl_webhooks_router)
-app.include_router(ghl_users_router)
+# Register GHL API routers only when GHL is configured
+if GHL_ENABLED:
+    app.include_router(ghl_locations_router)
+    app.include_router(ghl_oauth_router)
+    app.include_router(ghl_messages_router)
+    app.include_router(ghl_webhooks_router)
+    app.include_router(ghl_users_router)
 
-# Register Analytics API router
+# Always registered
 app.include_router(analytics.router)
-
-# Register Campaign Management API router
 app.include_router(campaign_management.router)
 
 
@@ -146,7 +150,7 @@ async def root():
         "message": "WhatsApp Campaign Management API",
         "version": "0.1.0",
         "status": "healthy",
-        "melhorias": "Interface WAHA implementada"
+        "provider": "GoHighLevel"
     }
 
 @app.get("/health")
@@ -175,7 +179,7 @@ async def health_check(db: Session = Depends(get_db)):
         "status": "healthy",
         "database": db_status,
         "service": "wpp-disp-backend",
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -190,97 +194,6 @@ if metrics_enabled:
             if auth_header != f"Bearer {METRICS_TOKEN}":
                 return JSONResponse(status_code=401, content={"error": "Unauthorized"})
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
-
-# ===== ENDPOINTS WAHA SESSIONS (NOVA IMPLEMENTAÇÃO) =====
-
-@app.get("/waha/sessions")
-async def get_waha_sessions():
-    """
-    GET /waha/sessions - Listar todas as sessões WAHA
-    ✅ IMPLEMENTADO: Substituiu campos separados por dropdown único
-    """
-    # Simulação de sessões WAHA (em produção, faria chamada para WAHA API)
-    sessions_demo = [
-        {
-            "id": "session1",
-            "name": "WhatsApp Principal",
-            "status": "WORKING",
-            "is_active": True,
-            "me": {
-                "id": "5511999999999@c.us",
-                "pushName": "Minha Empresa"
-            },
-            "last_updated": datetime.now().isoformat()
-        },
-        {
-            "id": "session2",
-            "name": "WhatsApp Secundário",
-            "status": "STOPPED",
-            "is_active": False,
-            "me": {
-                "id": "5511888888888@c.us",
-                "pushName": "Empresa Filial"
-            },
-            "last_updated": datetime.now().isoformat()
-        }
-    ]
-
-    return {"sessions": sessions_demo}
-
-@app.get("/waha/sessions/active")
-async def get_active_waha_sessions():
-    """
-    GET /waha/sessions/active - Apenas sessões ativas (WORKING)
-    ✅ IMPLEMENTADO: Para uso no Campaign Wizard
-    """
-    all_sessions = await get_waha_sessions()
-    active_sessions = [
-        session for session in all_sessions["sessions"]
-        if session["is_active"]
-    ]
-
-    return {"sessions": active_sessions}
-
-@app.get("/waha/sessions/{session_id}/validate")
-async def validate_session(session_id: str):
-    """
-    GET /waha/sessions/{session_id}/validate - Validar sessão para campanha
-    ✅ IMPLEMENTADO: Validação antes de criar campanha
-    """
-    # Verificar se sessão existe e está ativa
-    all_sessions = await get_waha_sessions()
-    session = next(
-        (s for s in all_sessions["sessions"] if s["id"] == session_id),
-        None
-    )
-
-    if not session:
-        return JSONResponse(
-            status_code=422,
-            content={
-                "error": "Session validation failed",
-                "message": f"Session '{session_id}' not found",
-                "session_status": "NOT_FOUND"
-            }
-        )
-
-    if not session["is_active"]:
-        return JSONResponse(
-            status_code=422,
-            content={
-                "error": "Session validation failed",
-                "message": f"Session '{session_id}' is not active",
-                "session_status": session["status"]
-            }
-        )
-
-    return {
-        "valid": True,
-        "session_id": session_id,
-        "session_name": session["name"],
-        "status": session["status"],
-        "validated_at": datetime.now().isoformat()
-    }
 
 # ===== DASHBOARD API (NOW USES REAL DATA FROM ANALYTICS ROUTER) =====
 # The dashboard endpoint is now handled by src/api/analytics.py
@@ -430,7 +343,7 @@ async def list_scheduled_campaigns(db: Session = Depends(get_db)):
     try:
         campaigns = db.query(Campaign).filter(
             Campaign.status == 'scheduled',
-            Campaign.scheduled_time > datetime.now()
+            Campaign.scheduled_time > datetime.now(timezone.utc)
         ).all()
 
         # Get scheduler jobs
@@ -596,24 +509,17 @@ async def execute_campaign_manually(
 async def docs_status():
     """Status da implementação"""
     return {
-        "melhorias_implementadas": {
-            "dashboard_sem_user_id": "✅ Dashboard carrega métricas sem exigir User ID",
-            "waha_sessions_api": "✅ API completa para sessões WAHA",
-            "dropdown_unificado": "✅ Dropdown único substitui campos separados",
-            "ghl_team_id_removido": "✅ Campo GHL Team ID completamente removido",
-            "resolucao_conflito_porta": "✅ Frontend na 3001, WAHA na 3000"
-        },
-        "endpoints_novos": [
-            "GET /waha/sessions - Listar sessões",
-            "GET /waha/sessions/active - Sessões ativas",
-            "GET /waha/sessions/{id}/validate - Validar sessão",
-            "GET /dashboard - Dashboard melhorado"
-        ],
-        "testes_disponiveis": [
-            "http://localhost:8000/waha/sessions",
-            "http://localhost:8000/waha/sessions/active",
-            "http://localhost:8000/api/v1/analytics/dashboard",
-            "http://localhost:8000/docs"
+        "provider": "GoHighLevel (GHL)",
+        "endpoints": [
+            "POST /api/v1/campaigns - Criar campanha",
+            "GET /api/v1/campaigns - Listar campanhas",
+            "GET /api/v1/analytics/dashboard - Dashboard de métricas",
+            "GET /ghl/locations - Listar locations GHL",
+            "GET /ghl/users - Listar usuários GHL",
+            "POST /ghl/oauth/callback - Callback OAuth GHL",
+            "POST /ghl/webhooks - Receber webhooks GHL",
+            "GET /health - Health check",
+            "GET /docs - Documentação Swagger"
         ]
     }
 
