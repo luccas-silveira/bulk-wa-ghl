@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import Papa from 'papaparse';
+import { fromZonedTime, toZonedTime, format as formatTz } from 'date-fns-tz';
 import { CampaignFormData, CampaignCreateRequest, ContactCsvData, SendingSpeed, ScheduleType } from '../../types/api';
 import { useGHLUsers } from '../../hooks/useGHLUsers';
 
@@ -476,10 +477,18 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
               {formData.schedule_type === 'scheduled' && (
                 <input
                   type="datetime-local"
-                  value={formData.scheduled_time?.toISOString().slice(0, 16) || ''}
+                  value={formData.scheduled_time
+                    ? formatTz(
+                        toZonedTime(formData.scheduled_time, Intl.DateTimeFormat().resolvedOptions().timeZone),
+                        "yyyy-MM-dd'T'HH:mm",
+                        { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
+                      )
+                    : ''}
                   onChange={(e) => setFormData(prev => ({
                     ...prev,
-                    scheduled_time: e.target.value ? new Date(e.target.value) : undefined
+                    scheduled_time: e.target.value
+                      ? fromZonedTime(e.target.value, Intl.DateTimeFormat().resolvedOptions().timeZone)
+                      : undefined
                   }))}
                   className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md"
                 />
