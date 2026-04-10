@@ -29,7 +29,7 @@ services:
     container_name: wpp_disp_backend
     environment:
       # Database
-      DATABASE_URL: postgresql://${POSTGRES_USER:-wpp_disp}:${POSTGRES_PASSWORD:-wpp_disp_password}@postgres:5432/${POSTGRES_DB:-wpp_disp_db}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-wpp_disp}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-wpp_disp_db}
 
       # GoHighLevel API
       GHL_CLIENT_ID: ${GHL_CLIENT_ID}

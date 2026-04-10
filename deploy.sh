@@ -43,11 +43,20 @@ echo "🔑 Validating required environment variables..."
 source "$ENV_FILE"
 
 MISSING_VARS=()
-for VAR in POSTGRES_PASSWORD GHL_CLIENT_ID GHL_CLIENT_SECRET GHL_TOKEN_ENCRYPTION_KEY GHL_WEBHOOK_SECRET GHL_REDIRECT_URI; do
-    if [ -z "${!VAR}" ]; then
-        MISSING_VARS+=("$VAR")
-    fi
-done
+
+# POSTGRES_PASSWORD is always required
+if [ -z "${POSTGRES_PASSWORD}" ]; then
+    MISSING_VARS+=("POSTGRES_PASSWORD")
+fi
+
+# GHL vars are only required when GHL_CLIENT_ID is set (mirrors config.py GHL_ENABLED logic)
+if [ -n "${GHL_CLIENT_ID}" ]; then
+    for VAR in GHL_CLIENT_SECRET GHL_TOKEN_ENCRYPTION_KEY GHL_WEBHOOK_SECRET GHL_REDIRECT_URI; do
+        if [ -z "${!VAR}" ]; then
+            MISSING_VARS+=("$VAR")
+        fi
+    done
+fi
 
 if [ ${#MISSING_VARS[@]} -ne 0 ]; then
     echo -e "${RED}❌ Missing required environment variables:${NC}"
