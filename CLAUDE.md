@@ -50,10 +50,13 @@ pytest tests/unit/test_file.py::test_name     # Single test
 
 ### Database migrations (from `backend/`)
 
-Alembic is configured in `backend/alembic/` with autogenerate wired to `src.database.Base` (see `backend/alembic/env.py`), but `versions/` is empty — no revisions have been committed. The current schema was created manually and there is no versioned migration yet. To introduce versioned migrations, generate the first revision:
+Alembic is configured in `backend/alembic/` with autogenerate wired to `src.database.Base` (see `backend/alembic/env.py`). Two revisions exist in `versions/`:
 
+1. `eb03c3cc8781_initial_schema` — creates all 7 tables
+2. `dcf35f16f1b2_timezone_aware_timestamps` — converts all TIMESTAMP columns to TIMESTAMPTZ
+
+To apply migrations on a new environment:
 ```bash
-alembic revision --autogenerate -m "initial schema"
 alembic upgrade head
 ```
 
@@ -82,6 +85,6 @@ The `docs/` folder contains domain context and historical decisions: `plano-impl
 ## Environment variables
 
 - **Required at boot** (startup fails without it): `DATABASE_URL`
-- **Required for any GHL functionality**: `GHL_CLIENT_ID`, `GHL_CLIENT_SECRET`, `GHL_REDIRECT_URI`, `GHL_TOKEN_ENCRYPTION_KEY`
-- **Optional**: `GHL_WEBHOOK_SECRET`, `GHL_PRIVATE_TOKEN`, `CORS_ORIGINS`, `ENABLE_METRICS`, `METRICS_TOKEN`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `LOG_LEVEL`, `DEBUG`
+- **Required for any GHL functionality** (all four required when `GHL_CLIENT_ID` is set): `GHL_CLIENT_ID`, `GHL_CLIENT_SECRET`, `GHL_REDIRECT_URI`, `GHL_TOKEN_ENCRYPTION_KEY`, `GHL_WEBHOOK_SECRET`
+- **Optional**: `GHL_PRIVATE_TOKEN`, `CORS_ORIGINS`, `ENABLE_METRICS`, `METRICS_TOKEN`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `LOG_LEVEL`, `DEBUG`
 - **Frontend**: `VITE_API_URL` (defaults to `http://localhost:8000`)

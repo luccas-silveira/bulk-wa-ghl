@@ -3,7 +3,7 @@
 **Propósito:** rastreamento operacional do [plano mestre](plano-implementacao-mestre.md).
 **Fonte da verdade descritiva:** `plano-implementacao-mestre.md` contém descrição detalhada de cada item (arquivo, linha, ação específica, critérios de conclusão). Este documento só rastreia status e serve como painel executável.
 **Última atualização:** 2026-04-10
-**Branch ativa:** `004-campaign-management`
+**Branch ativa:** `005-fase0`
 
 ---
 
@@ -18,11 +18,11 @@
 
 | Fase | Objetivo | EPICs incluídos | Itens | Concluídos |
 |------|----------|-----------------|------:|-----------:|
-| **0** — Bloqueadores de produção | Sistema deployável, seguro, timezone correto, secrets validados, pool controlado, dashboard sem dados fake | EPIC-01, 02, 03, 04, 05 (críticos/altos), 06 (validadores), 11 (ANA-01/02/03) | 41 | 4 |
+| **0** — Bloqueadores de produção | Sistema deployável, seguro, timezone correto, secrets validados, pool controlado, dashboard sem dados fake | EPIC-01, 02, 03, 04, 05 (críticos/altos), 06 (validadores), 11 (ANA-01/02/03) | 41 | 16 |
 | **1** — Estabilidade e segurança | State machine, webhooks idempotentes, telefone E.164, router frontend, UI crítica, infra de deploy, observabilidade | EPIC-05 (resto), 06 (resto), 07, 08, 09, 12, 13 (críticos), 14 (críticos/altos), 15, 17 | 73 | 0 |
 | **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 0 |
 | **Fora de fase** | EPIC-18 Opção B (remoção WAHA) + RAIZ-09 (endpoint createCampaign) | EPIC-18, RAIZ-09 | 6 | 5 |
-| **Total** | | | **172** | **9** |
+| **Total** | | | **172** | **21** |
 
 **Notas sobre contagem:**
 - **Fase 3 (Polish e Backlog)** não aparece como linha separada: os itens de severidade Baixa que o plano mestre consolida em Fase 3 aqui ficam dentro de seus EPICs originais nas Fases 1 e 2, para evitar duplicação.
@@ -32,9 +32,13 @@
 
 ## Próximo passo recomendado
 
-**EPIC-01 — Alembic e Schema Baseline.** É o único ponto de entrada obrigatório do plano. Sem ele, os EPICs 02, 05, 06, 09, 10 e 15 ficam bloqueados por dependência explícita. Esforço global: Médio (3 itens restantes, um é Médio e dois são Baixos).
+**EPICs 01, 02 e 03 concluídos (branch `005-fase0`).** Os desbloqueios disponíveis agora:
 
-**Atenção ao risco R01** (plano mestre, linha 866): se for rodar `alembic upgrade head` em banco já populado (staging/produção), usar `alembic stamp head` uma única vez antes para marcar o banco como sincronizado com a revisão sem reexecutar o SQL. Em banco vazio (CI, dev novo), rodar `alembic upgrade head` diretamente.
+- **EPIC-04** (OAuth Security) — desbloqueado por EPIC-03 ✅ — 9 itens, todos Baixo/Médio
+- **EPIC-05 críticos/altos** (Pool e Session) — desbloqueado por EPIC-01 ✅ — 11 itens; o mais urgente é PERS-22 (rollback no background task)
+- **EPIC-06 validadores** (Fase 0, CAMP-02/03) — desbloqueado por EPIC-01 ✅ e EPIC-02 ✅ — 2 itens Baixo
+
+Recomendação: começar pelo **EPIC-05 críticos/PERS-22** (rollback no background task de execução — risco de corrupção de estado de campanha em produção) em paralelo com **EPIC-04** (race condition no token OAuth — GHL-01).
 
 ## Decisões estratégicas
 
@@ -73,25 +77,25 @@ Critérios de saída (plano mestre, linha 568):
 - [x] **WAHA-04 / RAIZ-03** — Deletar `backend/migrations/001_waha_session_migration.sql` (Concluído — arquivo já deletado)
 
 ### EPIC-02 — Fundação de Timezone (RAIZ-01)
-**Dependências:** EPIC-01 • **Itens:** 3 • **Concluídos:** 0 • **Status:** Bloqueado por EPIC-01
+**Dependências:** EPIC-01 • **Itens:** 3 • **Concluídos:** 3 • **Status:** ✅ Concluído (2026-04-10)
 
-- [ ] **PERS-05** — Adicionar `timezone=True` em todos os `TIMESTAMP` dos 7 models via nova migration Alembic (Médio)
-- [ ] **CAMP-01** — Substituir `datetime.utcnow()` e `datetime.now()` por `datetime.now(timezone.utc)` (Médio)
-  _Nota: verificação nesta sessão detectou 17 ocorrências naive no backend (9× `utcnow`, 8× `now`), escopo maior que as 3 linhas originalmente citadas no plano. Ver `analytics_service.py` (4×), `ghl_webhook_handler.py` (4×), `main.py` (2×), `api/campaign_management.py` (1×), além das 3 do plano_
-- [ ] **FRONT-23** — Usar `date-fns-tz` em `CampaignWizard.tsx:478-482` para preservar timezone explícito (Médio)
+- [x] **PERS-05** — Adicionar `timezone=True` em todos os `TIMESTAMP` dos 7 models via nova migration Alembic (Médio)
+- [x] **CAMP-01** — Substituir `datetime.utcnow()` e `datetime.now()` por `datetime.now(timezone.utc)` (Médio)
+  _Nota: 17 ocorrências corrigidas (escopo maior que o plano original): `analytics_service.py` (4×), `ghl_webhook_handler.py` (4×), `main.py` (5×), `api/campaign_management.py` (1×), `campaign_executor_service.py` (1×), `ghl_oauth_service.py` (1×), `campaign_scheduler.py` (1×). Fixtures e testes também atualizados._
+- [x] **FRONT-23** — Usar `date-fns-tz` em `CampaignWizard.tsx:478-482` para preservar timezone explícito (Médio)
 
 ### EPIC-03 — Configuração, Secrets e Startup Validation
-**Dependências:** nenhuma • **Itens:** 9 • **Concluídos:** 0 • **Status:** Não iniciado (pode rodar em paralelo com EPIC-01)
+**Dependências:** nenhuma • **Itens:** 9 • **Concluídos:** 9 • **Status:** ✅ Concluído (2026-04-10)
 
-- [ ] **INFRA-19** — `_require_env()` para `GHL_TOKEN_ENCRYPTION_KEY` e `GHL_WEBHOOK_SECRET` quando GHL habilitado em `config.py:23-28` (Baixo)
-- [ ] **GHL-14** — Validar `GHL_WEBHOOK_SECRET` no startup em vez de on-demand em `ghl_webhook_handler.py:40-43` (Baixo)
-- [ ] **INFRA-06** — Validar env vars obrigatórias antes de iniciar serviços em `deploy.sh:31-39` (Baixo)
-- [ ] **INFRA-20** — Logar warning se `DEBUG=True` em produção; prevenir SQL echo (Baixo)
-- [ ] **INFRA-21** — Substituir CORS `allow_methods=["*"]` e `allow_headers=["*"]` por listas explícitas em `main.py:76-83` (Baixo)
-- [ ] **INFRA-23 / WAHA-16** — Exigir `CORS_ORIGINS` quando `DEBUG=False` em `config.py:33` (Baixo)
-- [ ] **WAHA-14** — Lógica condicional: se `GHL_CLIENT_ID` setado, exigir creds GHL; senão desabilitar endpoints GHL (Médio)
-- [ ] **INFRA-34** — Criar `scripts/init-db.sql` ou remover referência em `docker-compose.yml:14` (Baixo)
-- [ ] **INFRA-35** — Usar `${POSTGRES_PASSWORD:?...}` em vez de `${POSTGRES_PASSWORD:-wpp_disp_password}` em `docker-compose.yml:10` (Baixo)
+- [x] **INFRA-19** — `_require_env()` para `GHL_TOKEN_ENCRYPTION_KEY` e `GHL_WEBHOOK_SECRET` quando GHL habilitado em `config.py:23-28` (Baixo)
+- [x] **GHL-14** — Validar `GHL_WEBHOOK_SECRET` no startup em vez de on-demand em `ghl_webhook_handler.py:40-43` (Baixo)
+- [x] **INFRA-06** — Validar env vars obrigatórias antes de iniciar serviços em `deploy.sh:31-39` (Baixo)
+- [x] **INFRA-20** — Logar warning se `DEBUG=True` em produção; prevenir SQL echo (Baixo)
+- [x] **INFRA-21** — Substituir CORS `allow_methods=["*"]` e `allow_headers=["*"]` por listas explícitas em `main.py:76-83` (Baixo)
+- [x] **INFRA-23 / WAHA-16** — Exigir `CORS_ORIGINS` quando `DEBUG=False` em `config.py:33` (Baixo)
+- [x] **WAHA-14** — Lógica condicional: se `GHL_CLIENT_ID` setado, exigir creds GHL; senão desabilitar endpoints GHL (Médio)
+- [x] **INFRA-34** — Criar `scripts/init-db.sql` ou remover referência em `docker-compose.yml:14` (Baixo)
+- [x] **INFRA-35** — Usar `${POSTGRES_PASSWORD:?...}` em vez de `${POSTGRES_PASSWORD:-wpp_disp_password}` em `docker-compose.yml:10` (Baixo)
 
 ### EPIC-04 — Segurança OAuth e Tokens
 **Dependências:** EPIC-03 • **Itens:** 9 • **Concluídos:** 0 • **Status:** Bloqueado por EPIC-03
@@ -390,3 +394,4 @@ Este não é um EPIC por si, mas um problema raiz transversal listado no plano m
 |------|---------|-------|
 | 2026-04-10 | Documento criado a partir do `plano-implementacao-mestre.md`. WAHA EPIC-18 Opção B marcado como concluído (5 itens). ANA-01 marcado como parcial com nota sobre hacks. Status inicial de 12 itens verificado contra o código na branch `004-campaign-management`. | Revisão manual + verificação de código |
 | 2026-04-10 | DECISAO-02 a DECISAO-09 resolvidas. EPIC-01 (Alembic Baseline) concluído: `alembic/env.py` corrigido (PERS-03, INFRA-24), migration `eb03c3cc8781_initial_schema` gerada e aplicada ao banco dev. Total: 9 itens concluídos. | Implementação direta |
+| 2026-04-10 | EPIC-02 (Timezone) concluído na branch `005-fase0`: 7 models → TIMESTAMPTZ, migration `dcf35f16f1b2`, 17 ocorrências naive corrigidas no backend, `date-fns-tz` no CampaignWizard, fixtures e testes atualizados. EPIC-03 (Config/Secrets) concluído: `GHL_ENABLED` condicional, CORS explícito, `DEBUG` warning, `echo=DEBUG`, `GHL_WEBHOOK_SECRET` startup-only, deploy.sh validação de env, `POSTGRES_PASSWORD :?`, `init-db.sql` removido. Total: 21 itens concluídos. | Subagent-Driven Development (5 tasks, spec + quality review por task) |

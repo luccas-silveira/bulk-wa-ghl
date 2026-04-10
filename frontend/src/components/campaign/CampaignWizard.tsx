@@ -8,9 +8,9 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
 import { fromZonedTime, toZonedTime, format as formatTz } from 'date-fns-tz';
-
-const USER_TIMEZONE = USER_TIMEZONE;
 import { CampaignFormData, CampaignCreateRequest, ContactCsvData, SendingSpeed, ScheduleType } from '../../types/api';
+
+const USER_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 import { useGHLUsers } from '../../hooks/useGHLUsers';
 
 interface CampaignWizardProps {

@@ -11,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 import os
 
 # Set test environment variables before importing app
+os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost/testdb")
 os.environ["GHL_WEBHOOK_SECRET"] = "test_webhook_secret"
 
 # Import app and database
