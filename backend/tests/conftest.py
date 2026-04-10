@@ -11,9 +11,16 @@ from sqlalchemy.pool import StaticPool
 import os
 
 # Set test environment variables before importing app
+# All GHL vars must be set before config.py runs (GHL_ENABLED = bool(GHL_CLIENT_ID))
+from cryptography.fernet import Fernet as _Fernet
 os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost/test")
 os.environ.setdefault("DEBUG", "True")  # allows CORS_ORIGINS to default in tests
+os.environ.setdefault("GHL_CLIENT_ID", "test_client_id")
+os.environ.setdefault("GHL_CLIENT_SECRET", "test_client_secret")
+os.environ.setdefault("GHL_REDIRECT_URI", "http://localhost:8000/ghl/oauth/callback")
+os.environ.setdefault("GHL_TOKEN_ENCRYPTION_KEY", _Fernet.generate_key().decode())
 os.environ.setdefault("GHL_WEBHOOK_SECRET", "test_webhook_secret")
+os.environ.setdefault("CORS_ORIGINS", "http://localhost:3001")
 
 # Import app and database
 import sys
