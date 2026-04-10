@@ -38,6 +38,46 @@ if [ ! -f "$ENV_FILE" ]; then
     exit 1
 fi
 
+# Load and validate required environment variables
+set -a
+source "$ENV_FILE"
+set +a
+
+REQUIRED_VARS=("DATABASE_URL" "POSTGRES_PASSWORD" "GHL_TOKEN_ENCRYPTION_KEY")
+MISSING_VARS=()
+
+for var in "${REQUIRED_VARS[@]}"; do
+    if [ -z "${!var}" ]; then
+        MISSING_VARS+=("$var")
+    fi
+done
+
+if [ ${#MISSING_VARS[@]} -gt 0 ]; then
+    echo -e "${RED}❌ Missing required environment variables:${NC}"
+    for var in "${MISSING_VARS[@]}"; do
+        echo "   - $var"
+    done
+    echo "Please configure $ENV_FILE before deploying."
+    exit 1
+fi
+
+# Validate GHL config: if GHL_CLIENT_ID is set, all GHL creds must be present
+if [ -n "${GHL_CLIENT_ID}" ]; then
+    GHL_REQUIRED=("GHL_CLIENT_SECRET" "GHL_REDIRECT_URI" "GHL_WEBHOOK_SECRET")
+    for var in "${GHL_REQUIRED[@]}"; do
+        if [ -z "${!var}" ]; then
+            MISSING_VARS+=("$var")
+        fi
+    done
+    if [ ${#MISSING_VARS[@]} -gt 0 ]; then
+        echo -e "${RED}❌ GHL_CLIENT_ID is set but missing GHL creds:${NC}"
+        for var in "${MISSING_VARS[@]}"; do
+            echo "   - $var"
+        done
+        exit 1
+    fi
+fi
+
 # Check Docker
 if ! command -v docker &> /dev/null; then
     echo -e "${RED}❌ Docker is not installed!${NC}"
