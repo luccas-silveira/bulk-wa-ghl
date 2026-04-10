@@ -39,7 +39,6 @@ def upgrade() -> None:
                existing_type=postgresql.TIMESTAMP(),
                type_=sa.TIMESTAMP(timezone=True),
                existing_nullable=True)
-    op.create_foreign_key(None, 'campaigns', 'ghl_locations', ['ghl_location_id'], ['ghl_location_id'], ondelete='RESTRICT')
     op.alter_column('ghl_conversations', 'last_message_at',
                existing_type=postgresql.TIMESTAMP(),
                type_=sa.TIMESTAMP(timezone=True),
@@ -208,7 +207,6 @@ def downgrade() -> None:
                existing_type=sa.TIMESTAMP(timezone=True),
                type_=postgresql.TIMESTAMP(),
                existing_nullable=True)
-    op.drop_constraint(None, 'campaigns', type_='foreignkey')
     op.alter_column('campaigns', 'paused_at',
                existing_type=sa.TIMESTAMP(timezone=True),
                type_=postgresql.TIMESTAMP(),
