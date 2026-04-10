@@ -88,10 +88,10 @@ nano .env.production
 ```bash
 # PostgreSQL
 POSTGRES_USER=wpp_disp_prod
-POSTGRES_PASSWORD=<SENHA_FORTE_ALEATORIA>
+POSTGRES_PASSWORD=<SENHA_FORTE_ALEATORIA>   # obrigatório — sem default
 POSTGRES_DB=wpp_disp_production
 
-# GoHighLevel
+# GoHighLevel (obrigatórias quando GHL_CLIENT_ID está setado)
 GHL_CLIENT_ID=<SEU_CLIENT_ID>
 GHL_CLIENT_SECRET=<SEU_CLIENT_SECRET>
 GHL_REDIRECT_URI=https://seu-dominio.com/ghl/oauth/callback
@@ -102,9 +102,11 @@ GHL_TOKEN_ENCRYPTION_KEY=<GERAR_COM_COMANDO_ABAIXO>
 DEBUG=False
 LOG_LEVEL=WARNING
 VITE_API_URL=https://seu-dominio.com/api
-CORS_ORIGINS=https://seu-dominio.com
+CORS_ORIGINS=https://seu-dominio.com        # obrigatório quando DEBUG=False
 ENABLE_METRICS=true
 ```
+
+> **Nota sobre GHL:** Se `GHL_CLIENT_ID` não for configurado, os endpoints GHL são desabilitados automaticamente e as demais variáveis GHL não são exigidas. Configure-as apenas se for usar a integração com GoHighLevel.
 
 **Observabilidade:**
 

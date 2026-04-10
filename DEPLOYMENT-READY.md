@@ -26,13 +26,13 @@ Este projeto está totalmente configurado para deploy em VPS.
 - ✅ `scripts/backup-db.sh` - Backup automático do PostgreSQL
 - ✅ `scripts/migrate-db.sh` - Rodar migrações Alembic
 - ✅ `scripts/health-check.sh` - Verificar saúde dos serviços
-- ✅ `scripts/init-db.sql` - Inicialização do banco de dados
+- ~~`scripts/init-db.sql`~~ — removido; o Alembic gerencia o schema via `alembic upgrade head`
 
 ### Documentação:
 - ✅ `README-DEPLOY.md` - Guia completo de deployment
 
 ### Otimizações de Produção:
-- ✅ `backend/src/main.py` - CORS dinâmico, logging configurável, health check com DB
+- ✅ `backend/src/main.py` - CORS dinâmico, logging configurável, health check com DB, routers GHL condicionais (`GHL_ENABLED`)
 - ✅ `backend/src/database.py` - Connection pooling, pool_pre_ping, configuração prod
 - ✅ `backend/requirements.txt` - Gunicorn, requests, alembic adicionados
 - ✅ `frontend/src/config/env.ts` - API_BASE_URL dinâmico via variável de ambiente

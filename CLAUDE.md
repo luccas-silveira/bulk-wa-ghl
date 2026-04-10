@@ -11,9 +11,9 @@ Bulk WhatsApp messaging platform integrated with GoHighLevel (GHL). Manages camp
 **Backend** (Python 3.12 / FastAPI 0.104) — `backend/src/`
 - Entry point: `main.py` (uvicorn, port 8000)
 - Routers: `api/` — campaign, GHL, analytics endpoints
-- Services: `services/` — business logic (CampaignExecutor, CampaignScheduler, CampaignManagement, GHLConversations, GHLOAuth, TokenEncryption, Analytics)
+- Services: `services/` — business logic (CampaignExecutor, CampaignScheduler, CampaignManagement, GHLConversations, GHLOAuth, TokenEncryption, Analytics, GHLContacts, GHLUsers, GHLWebhookHandler)
 - Models: `models/` — SQLAlchemy 2.0 models (Campaign, Message, GHLLocation, GHLOAuthToken, GHLConversation, GHLUser, ProcessedWebhook)
-- Database: PostgreSQL 16 (Alembic configured in `backend/alembic/`, but no revisions committed yet — see "Database migrations" below)
+- Database: PostgreSQL 16 (Alembic configured in `backend/alembic/`; initial revision `eb03c3cc8781_initial_schema` committed — see "Database migrations" below)
 
 **Messaging provider:** GoHighLevel (GHL) only. WAHA (WhatsApp HTTP API) is not supported — endpoints, types, and references have been removed. If WAHA support is ever needed again, it will require introducing a provider abstraction layer (`MessageProvider` interface) and refactoring `CampaignExecutorService` to consume it.
 
@@ -50,11 +50,11 @@ pytest tests/unit/test_file.py::test_name     # Single test
 
 ### Database migrations (from `backend/`)
 
-Alembic is configured in `backend/alembic/` with autogenerate wired to `src.database.Base` (see `backend/alembic/env.py`), but `versions/` is empty — no revisions have been committed. The current schema was created manually and there is no versioned migration yet. To introduce versioned migrations, generate the first revision:
+Alembic is configured in `backend/alembic/` with autogenerate wired to `src.database.Base` (see `backend/alembic/env.py`). Two revisions are committed in `versions/`: `eb03c3cc8781_initial_schema` (baseline) and `a8f3c2e7d1b9` (timezone fixes). To apply or generate new revisions:
 
 ```bash
-alembic revision --autogenerate -m "initial schema"
-alembic upgrade head
+alembic upgrade head                              # Apply all pending migrations
+alembic revision --autogenerate -m "description" # Generate new revision after model changes
 ```
 
 Note: `backend/run_migration.py` is a legacy raw-SQL runner that targeted the now-deleted `backend/migrations/` directory. It is dead code — ignore it.
@@ -71,7 +71,7 @@ docker-compose logs -f backend  # Follow backend logs
 - **Campaign execution**: Background tasks via `asyncio.create_task()`. Campaigns can be immediate or scheduled (APScheduler). Multi-user campaigns distribute contacts round-robin. `CampaignExecutorService.SPEED_DELAYS` uses `slow=420s`, `medium=240s`, `fast=60s` between contacts — when testing real execution, use a small contact list or the run will take hours.
 - **Campaign status lifecycle**: `Campaign.status` is a plain `String(50)` (declared in `backend/src/models/campaign.py:37`, not an enum), default `draft`. Valid values: `draft`, `scheduled`, `executing`, `paused`, `completed`, `failed`, `cancelled`. Transitions observed in code: `draft → scheduled|executing|failed`; `executing → paused|completed|failed`; `paused → executing`; `scheduled → cancelled|failed`. Terminal states: `completed`, `failed`, `cancelled`.
 - **Campaign endpoints split across two routers**: the modern router `/api/v1/campaigns` in `backend/src/api/campaign_management.py` handles list, details, logs, stats, pause/resume, and delete — this is what the frontend uses for read/management. **Creation still goes through the legacy inline `POST /campaigns` in `backend/src/main.py:200`** (consumed by `frontend/src/main.tsx:52`). Other inline endpoints in `main.py` (`GET /campaigns/{id}`, `GET /campaigns/scheduled`, `DELETE /campaigns/{id}/schedule`) are superseded by the router and not consumed by the frontend. `POST /campaigns/{id}/execute` in `main.py:465` is a 400 stub — do not use.
-- **GHL OAuth**: Tokens encrypted with Fernet (`GHL_TOKEN_ENCRYPTION_KEY`) and stored in `ghl_oauth_tokens` table.
+- **GHL OAuth**: Tokens encrypted with Fernet (`GHL_TOKEN_ENCRYPTION_KEY`) and stored in `ghl_oauth_tokens` table. `GHL_WEBHOOK_SECRET` is validated at startup (not on-demand) — `ghl_webhook_handler.py` reads it from `src.config`, not from `os.getenv`.
 - **Observability**: Structured JSON logging with `X-Request-ID` propagation. Prometheus metrics at `/metrics` (toggle `ENABLE_METRICS`).
 - **API docs**: FastAPI auto-generates Swagger at `http://localhost:8000/docs`.
 
@@ -82,6 +82,7 @@ The `docs/` folder contains domain context and historical decisions: `plano-impl
 ## Environment variables
 
 - **Required at boot** (startup fails without it): `DATABASE_URL`
-- **Required for any GHL functionality**: `GHL_CLIENT_ID`, `GHL_CLIENT_SECRET`, `GHL_REDIRECT_URI`, `GHL_TOKEN_ENCRYPTION_KEY`
-- **Optional**: `GHL_WEBHOOK_SECRET`, `GHL_PRIVATE_TOKEN`, `CORS_ORIGINS`, `ENABLE_METRICS`, `METRICS_TOKEN`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `LOG_LEVEL`, `DEBUG`
+- **GHL integration** — controlled by `GHL_ENABLED = bool(GHL_CLIENT_ID)` (computed in `config.py`). Set `GHL_CLIENT_ID` to enable GHL; when set, these also become required at startup (via `_require_env()`): `GHL_CLIENT_SECRET`, `GHL_REDIRECT_URI`, `GHL_TOKEN_ENCRYPTION_KEY`, `GHL_WEBHOOK_SECRET`. When `GHL_ENABLED=False`, all GHL API routers are not registered (`main.py`).
+- **Required in production** (`DEBUG=False`): `CORS_ORIGINS` — startup raises `RuntimeError` if not set. Defaults to `http://localhost:3001,http://localhost:3000` only when `DEBUG=True`.
+- **Optional**: `GHL_PRIVATE_TOKEN`, `GHL_API_VERSION` (defaults to `2021-07-28`), `ENABLE_METRICS`, `METRICS_TOKEN`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `LOG_LEVEL`, `DEBUG`
 - **Frontend**: `VITE_API_URL` (defaults to `http://localhost:8000`)
