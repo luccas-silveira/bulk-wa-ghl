@@ -63,6 +63,7 @@ fi
 
 # Validate GHL config: if GHL_CLIENT_ID is set, all GHL creds must be present
 if [ -n "${GHL_CLIENT_ID}" ]; then
+    MISSING_VARS=()
     GHL_REQUIRED=("GHL_CLIENT_SECRET" "GHL_REDIRECT_URI" "GHL_WEBHOOK_SECRET")
     for var in "${GHL_REQUIRED[@]}"; do
         if [ -z "${!var}" ]; then
