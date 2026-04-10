@@ -6,7 +6,7 @@ Following TDD: These tests MUST FAIL before implementation (T012)
 import pytest
 from httpx import AsyncClient
 from fastapi import status
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from src.models.campaign import Campaign
 from src.models.message import Message
@@ -109,7 +109,7 @@ class TestDashboardContract:
             status="completed",
             ghl_location_id="loc_test123",
             ghl_user_id="user_123",
-            created_at=datetime.now()
+            created_at=datetime.now(timezone.utc)
         )
         db_session.add(campaign)
         db_session.commit()
@@ -121,7 +121,7 @@ class TestDashboardContract:
             content="Test",
             status="sent",
             ghl_status="delivered",
-            sent_at=datetime.now()
+            sent_at=datetime.now(timezone.utc)
         )
         db_session.add(message)
         db_session.commit()
@@ -170,7 +170,7 @@ class TestDashboardContract:
                 status=status_value,
                 ghl_location_id="loc_test123",
                 ghl_user_id="user_123",
-                created_at=datetime.now()
+                created_at=datetime.now(timezone.utc)
             )
             db_session.add(campaign)
         db_session.commit()
@@ -193,14 +193,14 @@ class TestDashboardContract:
             status="completed",
             ghl_location_id="loc_test123",
             ghl_user_id="user_123",
-            created_at=datetime.now() - timedelta(days=5)
+            created_at=datetime.now(timezone.utc) - timedelta(days=5)
         )
         campaign2 = Campaign(
             name="Lançamento Produto",
             status="executing",
             ghl_location_id="loc_test123",
             ghl_user_id="user_123",
-            created_at=datetime.now() - timedelta(days=2)
+            created_at=datetime.now(timezone.utc) - timedelta(days=2)
         )
         db_session.add_all([campaign1, campaign2])
         db_session.commit()
@@ -215,7 +215,7 @@ class TestDashboardContract:
                 content="Test",
                 status="sent",
                 ghl_status="delivered" if i < 97 else "sent",
-                sent_at=datetime.now()
+                sent_at=datetime.now(timezone.utc)
             )
             db_session.add(msg)
         db_session.commit()
@@ -279,7 +279,7 @@ class TestDashboardContract:
             status="completed",
             ghl_location_id="loc_test123",
             ghl_user_id="user_abc123",
-            created_at=datetime.now()
+            created_at=datetime.now(timezone.utc)
         )
         db_session.add(campaign)
         db_session.commit()
@@ -293,7 +293,7 @@ class TestDashboardContract:
                 content="Test",
                 status="sent",
                 ghl_status="delivered" if i < 57 else "sent",
-                sent_at=datetime.now()
+                sent_at=datetime.now(timezone.utc)
             )
             db_session.add(msg)
         db_session.commit()
@@ -315,7 +315,7 @@ class TestDashboardContract:
             status="completed",
             ghl_location_id="loc_test123",
             ghl_user_id="user_123",
-            created_at=datetime.now()
+            created_at=datetime.now(timezone.utc)
         )
         db_session.add(campaign)
         db_session.commit()
@@ -328,7 +328,7 @@ class TestDashboardContract:
             content="Test",
             status="sent",
             ghl_status="delivered",
-            sent_at=datetime.now()
+            sent_at=datetime.now(timezone.utc)
         )
         db_session.add(msg)
         db_session.commit()
@@ -361,7 +361,7 @@ class TestDashboardContract:
             status="completed",
             ghl_location_id="loc_test123",
             ghl_user_id="user_123",
-            created_at=datetime.now()
+            created_at=datetime.now(timezone.utc)
         )
         db_session.add(campaign)
         db_session.commit()
@@ -375,7 +375,7 @@ class TestDashboardContract:
                 content="Test",
                 status="sent",
                 ghl_status="read" if i < 8 else "delivered",
-                sent_at=datetime.now()
+                sent_at=datetime.now(timezone.utc)
             )
             db_session.add(msg)
         db_session.commit()

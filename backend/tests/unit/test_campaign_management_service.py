@@ -3,7 +3,7 @@ Unit tests for CampaignManagementService
 Following TDD - these tests MUST FAIL before implementation
 """
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, MagicMock, PropertyMock
 from src.services.campaign_management_service import CampaignManagementService
 from src.models.campaign import Campaign
@@ -39,8 +39,8 @@ def create_mock_campaign(id=1, name="Test Campaign", status="draft"):
     campaign.schedule_type = "immediate"
     campaign.scheduled_time = None
     campaign.paused_at = None
-    campaign.created_at = datetime.now()
-    campaign.updated_at = datetime.now()
+    campaign.created_at = datetime.now(timezone.utc)
+    campaign.updated_at = datetime.now(timezone.utc)
     campaign.to_dict.return_value = {
         "id": id,
         "name": name,
@@ -67,12 +67,12 @@ def create_mock_message(id=1, campaign_id=1, status="sent"):
     message.recipient_phone = "+5511999999999"
     message.content = "Test message"
     message.status = status
-    message.sent_at = datetime.now()
+    message.sent_at = datetime.now(timezone.utc)
     message.delivered_at = None
     message.read_at = None
     message.error_message = None
-    message.created_at = datetime.now()
-    message.updated_at = datetime.now()
+    message.created_at = datetime.now(timezone.utc)
+    message.updated_at = datetime.now(timezone.utc)
     message.to_dict.return_value = {
         "id": id,
         "campaign_id": campaign_id,

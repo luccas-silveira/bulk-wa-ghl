@@ -3,7 +3,7 @@ Test fixtures for contract and integration tests
 Provides sample data for GHL locations, OAuth tokens, and messages
 """
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from cryptography.fernet import Fernet
 
 from src.models.ghl_location import GHLLocation
@@ -64,7 +64,7 @@ def sample_ghl_locations(db_session):
             ghl_location_id=location.ghl_location_id,
             access_token_encrypted=encryption_service.encrypt("test_access_token"),
             refresh_token_encrypted=encryption_service.encrypt("test_refresh_token"),
-            expires_at=datetime.utcnow() + timedelta(hours=1),
+            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
             scope="conversations.readonly conversations.write",
             raw_response={"test": "data"}
         )
@@ -129,7 +129,7 @@ def mock_ghl_api_response():
         "conversationId": "conv_mock_12345",
         "contactId": "contact_mock_12345",
         "status": "sent",
-        "createdAt": datetime.utcnow().isoformat()
+        "createdAt": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -165,7 +165,7 @@ def paused_campaign(db_session, sample_ghl_locations):
         ghl_user_ids='["user_123"]',  # JSON string, not Python list
         sending_speed="medium",
         schedule_type="immediate",
-        paused_at=datetime.utcnow()
+        paused_at=datetime.now(timezone.utc)
     )
     db_session.add(campaign)
     db_session.commit()

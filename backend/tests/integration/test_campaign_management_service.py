@@ -3,7 +3,7 @@ Integration tests for CampaignManagementService
 Tests with real database
 """
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from src.database import Base
@@ -81,7 +81,7 @@ def sample_messages(db_session, sample_campaign):
             recipient_phone=f"+551199999{i:04d}",
             content="Test message",
             status=status,
-            sent_at=datetime.now() if status != 'pending' else None
+            sent_at=datetime.now(timezone.utc) if status != 'pending' else None
         )
         messages.append(msg)
         db_session.add(msg)

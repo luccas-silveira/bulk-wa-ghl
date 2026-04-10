@@ -6,7 +6,7 @@ Following TDD: These tests MUST FAIL before implementation (T011)
 import pytest
 from httpx import AsyncClient
 from fastapi import status
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from src.models.campaign import Campaign
 from src.models.message import Message
@@ -24,14 +24,14 @@ class TestDashboardEndpoint:
             status="completed",
             ghl_location_id="loc_test123",
             ghl_user_id="user_123",
-            created_at=datetime.now()
+            created_at=datetime.now(timezone.utc)
         )
         campaign2 = Campaign(
             name="Campaign 2",
             status="executing",
             ghl_location_id="loc_test456",
             ghl_user_id="user_456",
-            created_at=datetime.now()
+            created_at=datetime.now(timezone.utc)
         )
         db_session.add(campaign1)
         db_session.add(campaign2)
@@ -46,7 +46,7 @@ class TestDashboardEndpoint:
             content="Test message 1",
             status="sent",
             ghl_status="delivered",
-            sent_at=datetime.now()
+            sent_at=datetime.now(timezone.utc)
         )
         message2 = Message(
             campaign_id=campaign2.id,
@@ -54,7 +54,7 @@ class TestDashboardEndpoint:
             content="Test message 2",
             status="sent",
             ghl_status="read",
-            sent_at=datetime.now()
+            sent_at=datetime.now(timezone.utc)
         )
         db_session.add(message1)
         db_session.add(message2)
@@ -100,14 +100,14 @@ class TestDashboardEndpoint:
             status="completed",
             ghl_location_id="loc_test123",
             ghl_user_id="user_123",
-            created_at=datetime.now()
+            created_at=datetime.now(timezone.utc)
         )
         campaign2 = Campaign(
             name="User 2 Campaign",
             status="completed",
             ghl_location_id="loc_test456",
             ghl_user_id="user_456",
-            created_at=datetime.now()
+            created_at=datetime.now(timezone.utc)
         )
         db_session.add(campaign1)
         db_session.add(campaign2)
@@ -134,7 +134,7 @@ class TestDashboardEndpoint:
             status="completed",
             ghl_location_id="loc_test123",
             ghl_user_id="user_123",
-            created_at=datetime.now() - timedelta(days=40)
+            created_at=datetime.now(timezone.utc) - timedelta(days=40)
         )
         # Create recent campaign (within 30 days)
         recent_campaign = Campaign(
@@ -142,7 +142,7 @@ class TestDashboardEndpoint:
             status="completed",
             ghl_location_id="loc_test123",
             ghl_user_id="user_123",
-            created_at=datetime.now() - timedelta(days=10)
+            created_at=datetime.now(timezone.utc) - timedelta(days=10)
         )
         db_session.add(old_campaign)
         db_session.add(recent_campaign)
@@ -173,21 +173,21 @@ class TestDashboardEndpoint:
             status="completed",
             ghl_location_id="loc_test123",
             ghl_user_id="user_123",
-            created_at=datetime.now() - timedelta(days=10)
+            created_at=datetime.now(timezone.utc) - timedelta(days=10)
         )
         campaign2 = Campaign(
             name="User 1 Old",
             status="completed",
             ghl_location_id="loc_test123",
             ghl_user_id="user_123",
-            created_at=datetime.now() - timedelta(days=40)
+            created_at=datetime.now(timezone.utc) - timedelta(days=40)
         )
         campaign3 = Campaign(
             name="User 2 Recent",
             status="completed",
             ghl_location_id="loc_test456",
             ghl_user_id="user_456",
-            created_at=datetime.now() - timedelta(days=10)
+            created_at=datetime.now(timezone.utc) - timedelta(days=10)
         )
         db_session.add_all([campaign1, campaign2, campaign3])
         db_session.commit()

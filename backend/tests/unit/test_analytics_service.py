@@ -3,7 +3,7 @@ Unit tests for Analytics Service
 Following TDD approach - tests written before implementation
 """
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from src.models.campaign import Campaign
@@ -85,7 +85,7 @@ class TestGetCampaignMetrics:
 
     def test_with_time_range_filter(self, db_session):
         """Test with time range filter (days)"""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Campaign within range (20 days ago)
         campaign1 = Campaign(
@@ -113,7 +113,7 @@ class TestGetCampaignMetrics:
 
     def test_with_combined_filters(self, db_session):
         """Test with combined user and time filters"""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Campaign matching both filters
         campaign1 = Campaign(
@@ -177,7 +177,7 @@ class TestGetDeliveryMetrics:
         db_session.add(campaign)
         db_session.commit()
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Create 10 messages: 8 delivered, 2 failed
         for i in range(8):
@@ -218,7 +218,7 @@ class TestGetDeliveryMetrics:
         db_session.add(campaign)
         db_session.commit()
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Create 10 messages: 6 read, 4 only delivered
         for i in range(6):
@@ -259,7 +259,7 @@ class TestGetDeliveryMetrics:
         db_session.add(campaign)
         db_session.commit()
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # 5 sent, 3 delivered, 2 failed
         for i in range(5):
@@ -329,7 +329,7 @@ class TestGetDeliveryMetrics:
         db_session.add(campaign2)
         db_session.commit()
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # 3 messages for user_1
         for i in range(3):
@@ -370,7 +370,7 @@ class TestGetDeliveryMetrics:
         db_session.add(campaign)
         db_session.commit()
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Recent messages (within 30 days)
         for i in range(3):
@@ -407,7 +407,7 @@ class TestGetRecentCampaigns:
 
     def test_ordering_by_created_at_desc(self, db_session):
         """Test ordering by created_at DESC"""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Create campaigns with different dates
         for i in range(5):
@@ -429,7 +429,7 @@ class TestGetRecentCampaigns:
 
     def test_limit_parameter(self, db_session):
         """Test limit parameter (default 5)"""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Create 10 campaigns
         for i in range(10):
@@ -452,7 +452,7 @@ class TestGetRecentCampaigns:
 
     def test_with_user_and_time_filters(self, db_session):
         """Test with user and time filters"""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Campaign matching filters
         campaign1 = Campaign(
@@ -500,7 +500,7 @@ class TestGetRecentCampaigns:
         db_session.add(campaign)
         db_session.commit()
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # 7 delivered, 3 failed = 70% delivery rate
         for i in range(7):
@@ -557,7 +557,7 @@ class TestGetTopCampaigns:
 
     def test_ranking_by_read_rate_desc(self, db_session):
         """Test ranking by read_rate DESC"""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Create campaigns with different read rates
         campaigns_data = [
@@ -613,7 +613,7 @@ class TestGetTopCampaigns:
 
     def test_secondary_sort_by_delivery_rate(self, db_session):
         """Test secondary sort by delivery_rate when read_rate is equal"""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Create 2 campaigns with same read rate but different delivery rates
         # Campaign 1: 50% read, 80% delivery
@@ -713,7 +713,7 @@ class TestGetTopCampaigns:
 
     def test_limit_parameter(self, db_session):
         """Test limit parameter (default 10)"""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Create 15 campaigns
         for i in range(15):
@@ -757,7 +757,7 @@ class TestGetTopCampaigns:
         db_session.add(campaign1)
         db_session.commit()
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         message = Message(
             campaign_id=campaign1.id,
             recipient_phone="+5511999000001",
@@ -784,7 +784,7 @@ class TestGetTopCampaigns:
 
     def test_with_user_and_time_filters(self, db_session):
         """Test with user and time filters"""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Campaign matching filters
         campaign1 = Campaign(
@@ -865,7 +865,7 @@ class TestGetTopCampaigns:
         db_session.add(campaign)
         db_session.commit()
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         for i in range(10):
             message = Message(
                 campaign_id=campaign.id,
