@@ -2,6 +2,7 @@
 GHL OAuth Token Model
 Stores encrypted OAuth tokens for GHL locations
 """
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import Column, Integer, String, LargeBinary, TIMESTAMP, Text, JSON, ForeignKey, Index
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -60,8 +61,6 @@ class GHLOAuthToken(Base):
         Returns:
             True if token is expired or about to expire (within 5 minutes)
         """
-        from datetime import datetime, timedelta, timezone
-
         if not self.expires_at:
             return True
 
