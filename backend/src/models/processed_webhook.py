@@ -24,7 +24,7 @@ class ProcessedWebhook(Base):
     webhook_id = Column(String(100), primary_key=True)
     event_type = Column(String(50), nullable=False)
     ghl_location_id = Column(String(50), nullable=True, index=True)
-    processed_at = Column(TIMESTAMP, server_default=func.now(), nullable=False, index=True)
+    processed_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False, index=True)
     payload_hash = Column(String(64), nullable=True)  # SHA-256 hash
 
     # Indexes

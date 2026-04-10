@@ -40,12 +40,12 @@ class GHLConversation(Base):
     ghl_contact_id = Column(String(50), nullable=False, index=True)
     contact_phone = Column(String(20), nullable=False, index=True)
     contact_name = Column(String(255), nullable=True)
-    last_message_at = Column(TIMESTAMP, nullable=True)
+    last_message_at = Column(TIMESTAMP(timezone=True), nullable=True)
     last_message_type = Column(String(50), nullable=True)
     unread_count = Column(Integer, default=0, nullable=False)
     extra_metadata = Column('metadata', JSON, nullable=True)  # Column name in DB is 'metadata'
-    created_at = Column(TIMESTAMP, server_default=func.now(), nullable=False)
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationship to GHLLocation
     location = relationship("GHLLocation", backref="conversations", foreign_keys=[ghl_location_id])

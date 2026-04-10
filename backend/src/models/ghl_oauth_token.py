@@ -38,11 +38,11 @@ class GHLOAuthToken(Base):
     access_token_encrypted = Column(LargeBinary, nullable=False)
     refresh_token_encrypted = Column(LargeBinary, nullable=False)
     token_type = Column(String(20), default='Bearer', nullable=False)
-    expires_at = Column(TIMESTAMP, nullable=False, index=True)
+    expires_at = Column(TIMESTAMP(timezone=True), nullable=False, index=True)
     scope = Column(Text, nullable=False)
     raw_response = Column(JSON, nullable=True)
-    created_at = Column(TIMESTAMP, server_default=func.now(), nullable=False)
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationship to GHLLocation
     location = relationship("GHLLocation", backref="oauth_token", foreign_keys=[ghl_location_id])

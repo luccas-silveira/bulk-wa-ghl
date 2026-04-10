@@ -43,12 +43,12 @@ class Message(Base):
     content = Column(Text, nullable=False)
     media_url = Column(Text, nullable=True)  # Optional media attachment URL
     status = Column(String(50), nullable=False, default='pending', index=True)
-    sent_at = Column(TIMESTAMP, nullable=True)
-    delivered_at = Column(TIMESTAMP, nullable=True)
-    read_at = Column(TIMESTAMP, nullable=True)
+    sent_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    delivered_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    read_at = Column(TIMESTAMP(timezone=True), nullable=True)
     error_message = Column(Text, nullable=True)
-    created_at = Column(TIMESTAMP, server_default=func.now(), nullable=False)
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # GHL integration fields (NEW)
     ghl_conversation_id = Column(String(50), nullable=True, index=True)
