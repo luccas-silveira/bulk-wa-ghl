@@ -2,20 +2,17 @@
 GHL Webhook Handler
 Processes webhooks from GoHighLevel for message status updates
 """
-import os
 import hmac
 import hashlib
 import json
 from typing import Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
-from dotenv import load_dotenv
 
+from src.config import GHL_WEBHOOK_SECRET
 from src.models.processed_webhook import ProcessedWebhook
 from src.models.message import Message
 from src.models.ghl_conversation import GHLConversation
-
-load_dotenv()
 
 
 class GHLWebhookHandler:
@@ -37,10 +34,7 @@ class GHLWebhookHandler:
             db: SQLAlchemy database session
         """
         self.db = db
-        self.webhook_secret = os.getenv("GHL_WEBHOOK_SECRET")
-
-        if not self.webhook_secret:
-            raise ValueError("GHL_WEBHOOK_SECRET environment variable is not set")
+        self.webhook_secret = GHL_WEBHOOK_SECRET
 
     def validate_signature(self, payload: bytes, signature: str) -> bool:
         """
@@ -149,7 +143,7 @@ class GHLWebhookHandler:
             # Update message status
             message.status = "delivered"
             message.ghl_status = "delivered"
-            message.delivered_at = datetime.utcnow()
+            message.delivered_at = datetime.now(timezone.utc)
             self.db.commit()
 
             return {
@@ -178,7 +172,7 @@ class GHLWebhookHandler:
         if message:
             message.status = "read"
             message.ghl_status = "read"
-            message.read_at = datetime.utcnow()
+            message.read_at = datetime.now(timezone.utc)
             self.db.commit()
 
             return {
@@ -242,7 +236,7 @@ class GHLWebhookHandler:
         ).first()
 
         if conversation:
-            conversation.last_message_at = datetime.utcnow()
+            conversation.last_message_at = datetime.now(timezone.utc)
             conversation.last_message_type = "text"
             conversation.unread_count += 1
         else:
@@ -252,7 +246,7 @@ class GHLWebhookHandler:
                 ghl_location_id=location_id,
                 ghl_contact_id=contact_id,
                 contact_phone=contact_phone,
-                last_message_at=datetime.utcnow(),
+                last_message_at=datetime.now(timezone.utc),
                 last_message_type="text",
                 unread_count=1
             )
