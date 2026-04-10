@@ -60,14 +60,14 @@ class GHLOAuthToken(Base):
         Returns:
             True if token is expired or about to expire (within 5 minutes)
         """
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
         if not self.expires_at:
             return True
 
         # Consider token expired if it expires within 5 minutes
         buffer = timedelta(minutes=5)
-        return datetime.utcnow() + buffer >= self.expires_at
+        return datetime.now(timezone.utc) + buffer >= self.expires_at
 
     def __repr__(self):
         return f"<GHLOAuthToken(id={self.id}, location_id='{self.ghl_location_id}', expires_at={self.expires_at})>"
