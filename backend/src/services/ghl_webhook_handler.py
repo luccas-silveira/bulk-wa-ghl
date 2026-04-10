@@ -2,20 +2,17 @@
 GHL Webhook Handler
 Processes webhooks from GoHighLevel for message status updates
 """
-import os
 import hmac
 import hashlib
 import json
 from typing import Dict, Optional
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
-from dotenv import load_dotenv
 
+from src.config import GHL_WEBHOOK_SECRET
 from src.models.processed_webhook import ProcessedWebhook
 from src.models.message import Message
 from src.models.ghl_conversation import GHLConversation
-
-load_dotenv()
 
 
 class GHLWebhookHandler:
@@ -37,10 +34,7 @@ class GHLWebhookHandler:
             db: SQLAlchemy database session
         """
         self.db = db
-        self.webhook_secret = os.getenv("GHL_WEBHOOK_SECRET")
-
-        if not self.webhook_secret:
-            raise ValueError("GHL_WEBHOOK_SECRET environment variable is not set")
+        self.webhook_secret = GHL_WEBHOOK_SECRET
 
     def validate_signature(self, payload: bytes, signature: str) -> bool:
         """
@@ -54,6 +48,9 @@ class GHLWebhookHandler:
             True if signature is valid, False otherwise
         """
         if not signature:
+            return False
+
+        if not self.webhook_secret:
             return False
 
         # Calculate expected signature

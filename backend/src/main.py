@@ -33,6 +33,7 @@ from src.logging_config import (
     request_id_ctx_var,
     setup_logging,
 )
+from src.config import CORS_ORIGINS, ENABLE_METRICS, GHL_ENABLED, DEBUG
 from src.metrics import api_request_errors, api_request_latency, scheduler_jobs_gauge
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
@@ -71,23 +72,29 @@ logger = logging.getLogger(__name__)
 
 # Initialize Campaign Scheduler
 scheduler = CampaignScheduler()
-from src.config import CORS_ORIGINS, ENABLE_METRICS
+
+if DEBUG:
+    logger.warning(
+        "DEBUG mode is enabled — do not use in production."
+    )
+
 metrics_enabled = ENABLE_METRICS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods including OPTIONS
-    allow_headers=["*"],
-    expose_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID", "X-GHL-Signature"],
+    expose_headers=["X-Request-ID"],
 )
 
-# Register GHL API routers
-app.include_router(ghl_locations_router)
-app.include_router(ghl_oauth_router)
-app.include_router(ghl_messages_router)
-app.include_router(ghl_webhooks_router)
-app.include_router(ghl_users_router)
+# Register GHL API routers (only when GHL integration is configured)
+if GHL_ENABLED:
+    app.include_router(ghl_locations_router)
+    app.include_router(ghl_oauth_router)
+    app.include_router(ghl_messages_router)
+    app.include_router(ghl_webhooks_router)
+    app.include_router(ghl_users_router)
 
 # Register Analytics API router
 app.include_router(analytics.router)

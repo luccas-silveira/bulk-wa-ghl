@@ -3,11 +3,11 @@ Database configuration and session management
 """
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from src.config import DATABASE_URL, DEBUG, DB_POOL_SIZE, DB_MAX_OVERFLOW
+from src.config import DATABASE_URL, DB_POOL_SIZE, DB_MAX_OVERFLOW, DEBUG
 
 engine = create_engine(
     DATABASE_URL,
-    echo=DEBUG,
+    echo=DEBUG,  # Echo SQL statements only in DEBUG mode
     pool_size=DB_POOL_SIZE,
     max_overflow=DB_MAX_OVERFLOW,
     pool_pre_ping=True,
