@@ -19,18 +19,38 @@ def _require_env(name: str) -> str:
 # Database
 DATABASE_URL = _require_env("DATABASE_URL")
 
-# GHL Integration (optional in demo/WAHA mode)
+# GHL Integration
 GHL_CLIENT_ID = os.getenv("GHL_CLIENT_ID", "")
-GHL_CLIENT_SECRET = os.getenv("GHL_CLIENT_SECRET", "")
-GHL_REDIRECT_URI = os.getenv("GHL_REDIRECT_URI", "")
-GHL_TOKEN_ENCRYPTION_KEY = os.getenv("GHL_TOKEN_ENCRYPTION_KEY", "")
-GHL_WEBHOOK_SECRET = os.getenv("GHL_WEBHOOK_SECRET", "")
+GHL_ENABLED = bool(GHL_CLIENT_ID)
+
+if GHL_ENABLED:
+    GHL_CLIENT_SECRET = _require_env("GHL_CLIENT_SECRET")
+    GHL_REDIRECT_URI = _require_env("GHL_REDIRECT_URI")
+    GHL_TOKEN_ENCRYPTION_KEY = _require_env("GHL_TOKEN_ENCRYPTION_KEY")
+    GHL_WEBHOOK_SECRET = _require_env("GHL_WEBHOOK_SECRET")
+else:
+    GHL_CLIENT_SECRET = ""
+    GHL_REDIRECT_URI = ""
+    GHL_TOKEN_ENCRYPTION_KEY = ""
+    GHL_WEBHOOK_SECRET = ""
+
 GHL_PRIVATE_TOKEN = os.getenv("GHL_PRIVATE_TOKEN", "")
 
 # Application
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3001,http://localhost:3000").split(",") if o.strip()]
+
+_cors_env = os.getenv("CORS_ORIGINS")
+if not DEBUG and not _cors_env:
+    raise RuntimeError(
+        "Required environment variable 'CORS_ORIGINS' must be set when DEBUG=False"
+    )
+CORS_ORIGINS = [
+    o.strip()
+    for o in (_cors_env or "http://localhost:3001,http://localhost:3000").split(",")
+    if o.strip()
+]
+
 ENABLE_METRICS = os.getenv("ENABLE_METRICS", "true").lower() == "true"
 METRICS_TOKEN = os.getenv("METRICS_TOKEN", "")
 
