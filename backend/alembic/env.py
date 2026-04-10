@@ -12,7 +12,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from src.database import Base
 # Import all models so Alembic autogenerate detects them
-import src.models  # noqa: F401
+try:
+    import src.models  # noqa: F401
+except ImportError as e:
+    raise ImportError(
+        f"Failed to import src.models — ensure all model dependencies are installed: {e}"
+    ) from e
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -23,7 +28,10 @@ load_dotenv()
 config = context.config
 
 # Set sqlalchemy.url from environment variable
-config.set_main_option('sqlalchemy.url', os.getenv('DATABASE_URL', 'postgresql://user:password@localhost:5432/wpp_disp_dev'))
+database_url = os.getenv('DATABASE_URL')
+if not database_url:
+    raise RuntimeError("DATABASE_URL environment variable is required to run Alembic migrations")
+config.set_main_option('sqlalchemy.url', database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

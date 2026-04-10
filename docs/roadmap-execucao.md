@@ -18,11 +18,11 @@
 
 | Fase | Objetivo | EPICs incluídos | Itens | Concluídos |
 |------|----------|-----------------|------:|-----------:|
-| **0** — Bloqueadores de produção | Sistema deployável, seguro, timezone correto, secrets validados, pool controlado, dashboard sem dados fake | EPIC-01, 02, 03, 04, 05 (críticos/altos), 06 (validadores), 11 (ANA-01/02/03) | 41 | 1 |
+| **0** — Bloqueadores de produção | Sistema deployável, seguro, timezone correto, secrets validados, pool controlado, dashboard sem dados fake | EPIC-01, 02, 03, 04, 05 (críticos/altos), 06 (validadores), 11 (ANA-01/02/03) | 41 | 4 |
 | **1** — Estabilidade e segurança | State machine, webhooks idempotentes, telefone E.164, router frontend, UI crítica, infra de deploy, observabilidade | EPIC-05 (resto), 06 (resto), 07, 08, 09, 12, 13 (críticos), 14 (críticos/altos), 15, 17 | 73 | 0 |
 | **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 0 |
 | **Fora de fase** | EPIC-18 Opção B (remoção WAHA) + RAIZ-09 (endpoint createCampaign) | EPIC-18, RAIZ-09 | 6 | 5 |
-| **Total** | | | **172** | **6** |
+| **Total** | | | **172** | **9** |
 
 **Notas sobre contagem:**
 - **Fase 3 (Polish e Backlog)** não aparece como linha separada: os itens de severidade Baixa que o plano mestre consolida em Fase 3 aqui ficam dentro de seus EPICs originais nas Fases 1 e 2, para evitar duplicação.
@@ -65,11 +65,11 @@ Critérios de saída (plano mestre, linha 568):
 - Validações de agendamento funcionando
 
 ### EPIC-01 — Alembic e Schema Baseline
-**Dependências:** nenhuma (primeiro) • **Itens:** 4 • **Concluídos:** 1 • **Status:** Não iniciado
+**Dependências:** nenhuma (primeiro) • **Itens:** 4 • **Concluídos:** 4 • **Status:** ✅ Concluído (2026-04-10)
 
-- [ ] **INFRA-15 / PERS-01 (RAIZ-02)** — Gerar migration inicial com `alembic revision --autogenerate -m "initial_schema"` e testar em banco limpo (Médio)
-- [ ] **PERS-03** — Envolver `import src.models` em try/except com mensagem clara em `backend/alembic/env.py:14-15` (Baixo)
-- [ ] **INFRA-24** — Remover fallback hardcoded `postgresql://user:password@localhost...` em `backend/alembic/env.py:26` (Baixo)
+- [x] **INFRA-15 / PERS-01 (RAIZ-02)** — Gerar migration inicial com `alembic revision --autogenerate -m "initial_schema"` e testar em banco limpo (Médio)
+- [x] **PERS-03** — Envolver `import src.models` em try/except com mensagem clara em `backend/alembic/env.py:14-15` (Baixo)
+- [x] **INFRA-24** — Remover fallback hardcoded `postgresql://user:password@localhost...` em `backend/alembic/env.py:26` (Baixo)
 - [x] **WAHA-04 / RAIZ-03** — Deletar `backend/migrations/001_waha_session_migration.sql` (Concluído — arquivo já deletado)
 
 ### EPIC-02 — Fundação de Timezone (RAIZ-01)
@@ -389,3 +389,4 @@ Este não é um EPIC por si, mas um problema raiz transversal listado no plano m
 | Data | Mudança | Fonte |
 |------|---------|-------|
 | 2026-04-10 | Documento criado a partir do `plano-implementacao-mestre.md`. WAHA EPIC-18 Opção B marcado como concluído (5 itens). ANA-01 marcado como parcial com nota sobre hacks. Status inicial de 12 itens verificado contra o código na branch `004-campaign-management`. | Revisão manual + verificação de código |
+| 2026-04-10 | DECISAO-02 a DECISAO-09 resolvidas. EPIC-01 (Alembic Baseline) concluído: `alembic/env.py` corrigido (PERS-03, INFRA-24), migration `eb03c3cc8781_initial_schema` gerada e aplicada ao banco dev. Total: 9 itens concluídos. | Implementação direta |
