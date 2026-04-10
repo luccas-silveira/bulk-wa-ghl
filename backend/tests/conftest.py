@@ -13,7 +13,7 @@ import os
 # Set test environment variables before importing app
 os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost/test")
 os.environ.setdefault("DEBUG", "True")  # allows CORS_ORIGINS to default in tests
-os.environ["GHL_WEBHOOK_SECRET"] = "test_webhook_secret"
+os.environ.setdefault("GHL_WEBHOOK_SECRET", "test_webhook_secret")
 
 # Import app and database
 import sys
