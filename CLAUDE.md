@@ -77,7 +77,7 @@ docker-compose logs -f backend  # Follow backend logs
 
 ## Supporting docs
 
-The `docs/` folder contains domain context and historical decisions: `plano-implementacao-mestre.md` (master implementation plan), `code-review-campaign-module.md`, and audit documents per subsystem (`auditoria-integracao-ghl.md`, `auditoria-persistencia-dados.md`, `auditoria-analytics-metricas.md`, `auditoria-frontend-ui.md`, `auditoria-infraestrutura-deploy.md`, and `auditoria-integracao-waha.md` — the last one is historical; WAHA is no longer supported). Read these for background on *why* something was built a certain way.
+The `docs/` folder contains domain context and historical decisions: `plano-implementacao-mestre.md` (master implementation plan), `roadmap-execucao.md` (live execution tracker with per-item status for all 18 EPICs — consult this first to see what's next and what's already done), `code-review-campaign-module.md`, and audit documents per subsystem (`auditoria-integracao-ghl.md`, `auditoria-persistencia-dados.md`, `auditoria-analytics-metricas.md`, `auditoria-frontend-ui.md`, `auditoria-infraestrutura-deploy.md`, and `auditoria-integracao-waha.md` — the last one is historical; WAHA is no longer supported). Read these for background on *why* something was built a certain way.
 
 ## Environment variables
 
