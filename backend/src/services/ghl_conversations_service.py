@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -192,7 +192,7 @@ class GHLConversationsService:
                     "conversationId": result.get("conversationId"),
                     "contactId": result.get("contactId"),
                     "status": "sent",
-                    "sentAt": datetime.utcnow().isoformat()
+                    "sentAt": datetime.now(timezone.utc).isoformat()
                 }
 
             except httpx.HTTPStatusError as e:

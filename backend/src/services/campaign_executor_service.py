@@ -6,7 +6,7 @@ import asyncio
 import os
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from src.models.campaign import Campaign
@@ -148,7 +148,7 @@ class CampaignExecutorService:
 
                             # Update message with success
                             message.status = 'sent'
-                            message.sent_at = datetime.utcnow()
+                            message.sent_at = datetime.now(timezone.utc)
                             message.ghl_message_id = result.get('messageId')
                             message.ghl_conversation_id = result.get('conversationId')
                             message.ghl_status = result.get('status')

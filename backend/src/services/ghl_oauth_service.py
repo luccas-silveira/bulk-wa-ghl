@@ -4,7 +4,7 @@ Handles OAuth 2.0 authentication flow with GoHighLevel
 """
 import os
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
@@ -220,7 +220,7 @@ class GHLOAuthService:
         refresh_token_encrypted = self.encryption_service.encrypt(refresh_token)
 
         # Calculate expiration time
-        expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
         # Check if token record exists
         token_record = self.db.query(GHLOAuthToken).filter(

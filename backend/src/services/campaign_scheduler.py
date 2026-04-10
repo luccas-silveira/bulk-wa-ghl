@@ -3,7 +3,7 @@ Campaign Scheduler Service
 Handles scheduling and execution of campaigns using APScheduler
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.date import DateTrigger
@@ -172,7 +172,7 @@ class CampaignScheduler:
             # Query campaigns with status='scheduled' and scheduled_time > now
             pending_campaigns = db.query(Campaign).filter(
                 Campaign.status == 'scheduled',
-                Campaign.scheduled_time > datetime.now()
+                Campaign.scheduled_time > datetime.now(timezone.utc)
             ).all()
 
             logger.info(f"Loading {len(pending_campaigns)} pending scheduled campaigns...")

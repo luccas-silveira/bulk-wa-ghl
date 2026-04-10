@@ -2,7 +2,7 @@
 Analytics Service
 Provides dashboard analytics and metrics for campaigns and messages
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 
@@ -27,7 +27,7 @@ def get_campaign_metrics(
         Dictionary with campaign counts by status
     """
     # Calculate date threshold
-    date_threshold = datetime.now() - timedelta(days=days)
+    date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
     # Base query with time filter
     query = db.query(Campaign).filter(Campaign.created_at >= date_threshold)
@@ -76,7 +76,7 @@ def get_delivery_metrics(
         Dictionary with delivery metrics and rates
     """
     # Calculate date threshold
-    date_threshold = datetime.now() - timedelta(days=days)
+    date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
     # Base query: messages in time range (include both sent and failed)
     query = db.query(Message).filter(Message.created_at >= date_threshold)
@@ -137,7 +137,7 @@ def get_recent_campaigns(
     from sqlalchemy import desc
 
     # Calculate date threshold
-    date_threshold = datetime.now() - timedelta(days=days)
+    date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
     # Base query with filters
     query = db.query(Campaign).filter(Campaign.created_at >= date_threshold)
@@ -195,7 +195,7 @@ def get_top_campaigns(
         List of campaign dictionaries ranked by performance
     """
     # Calculate date threshold
-    date_threshold = datetime.now() - timedelta(days=days)
+    date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
     # Base query with filters
     query = db.query(Campaign).filter(Campaign.created_at >= date_threshold)

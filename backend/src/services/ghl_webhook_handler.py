@@ -7,7 +7,7 @@ import hmac
 import hashlib
 import json
 from typing import Dict, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 
@@ -149,7 +149,7 @@ class GHLWebhookHandler:
             # Update message status
             message.status = "delivered"
             message.ghl_status = "delivered"
-            message.delivered_at = datetime.utcnow()
+            message.delivered_at = datetime.now(timezone.utc)
             self.db.commit()
 
             return {
@@ -178,7 +178,7 @@ class GHLWebhookHandler:
         if message:
             message.status = "read"
             message.ghl_status = "read"
-            message.read_at = datetime.utcnow()
+            message.read_at = datetime.now(timezone.utc)
             self.db.commit()
 
             return {
@@ -242,7 +242,7 @@ class GHLWebhookHandler:
         ).first()
 
         if conversation:
-            conversation.last_message_at = datetime.utcnow()
+            conversation.last_message_at = datetime.now(timezone.utc)
             conversation.last_message_type = "text"
             conversation.unread_count += 1
         else:
@@ -252,7 +252,7 @@ class GHLWebhookHandler:
                 ghl_location_id=location_id,
                 ghl_contact_id=contact_id,
                 contact_phone=contact_phone,
-                last_message_at=datetime.utcnow(),
+                last_message_at=datetime.now(timezone.utc),
                 last_message_type="text",
                 unread_count=1
             )

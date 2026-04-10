@@ -5,7 +5,7 @@ Provides campaign listing, details, logs, statistics, pause/resume, and deletion
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, Response, status as http_status
 from sqlalchemy.orm import Session
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from src.database import get_db
 from src.services.campaign_management_service import CampaignManagementService
@@ -139,7 +139,7 @@ async def pause_campaign(
 
         # Update status
         campaign.status = 'paused'
-        campaign.paused_at = datetime.now()
+        campaign.paused_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(campaign)
 

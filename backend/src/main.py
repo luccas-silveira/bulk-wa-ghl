@@ -6,7 +6,7 @@ Complete API with GHL OAuth, Conversations, and Webhooks
 from fastapi import FastAPI, Depends, BackgroundTasks, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 import asyncio
 import logging
@@ -175,7 +175,7 @@ async def health_check(db: Session = Depends(get_db)):
         "status": "healthy",
         "database": db_status,
         "service": "wpp-disp-backend",
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -210,7 +210,7 @@ async def get_waha_sessions():
                 "id": "5511999999999@c.us",
                 "pushName": "Minha Empresa"
             },
-            "last_updated": datetime.now().isoformat()
+            "last_updated": datetime.now(timezone.utc).isoformat()
         },
         {
             "id": "session2",
@@ -221,7 +221,7 @@ async def get_waha_sessions():
                 "id": "5511888888888@c.us",
                 "pushName": "Empresa Filial"
             },
-            "last_updated": datetime.now().isoformat()
+            "last_updated": datetime.now(timezone.utc).isoformat()
         }
     ]
 
@@ -279,7 +279,7 @@ async def validate_session(session_id: str):
         "session_id": session_id,
         "session_name": session["name"],
         "status": session["status"],
-        "validated_at": datetime.now().isoformat()
+        "validated_at": datetime.now(timezone.utc).isoformat()
     }
 
 # ===== DASHBOARD API (NOW USES REAL DATA FROM ANALYTICS ROUTER) =====
@@ -430,7 +430,7 @@ async def list_scheduled_campaigns(db: Session = Depends(get_db)):
     try:
         campaigns = db.query(Campaign).filter(
             Campaign.status == 'scheduled',
-            Campaign.scheduled_time > datetime.now()
+            Campaign.scheduled_time > datetime.now(timezone.utc)
         ).all()
 
         # Get scheduler jobs
