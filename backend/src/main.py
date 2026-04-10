@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
+from contextlib import asynccontextmanager
 import asyncio
 import logging
 import os
@@ -46,9 +47,10 @@ from src.api.ghl_users import router as ghl_users_router
 from src.api import analytics
 from src.api import campaign_management
 
-from contextlib import asynccontextmanager
-
 setup_logging()
+
+# Initialize Campaign Scheduler (before lifespan to ensure it's available)
+scheduler = CampaignScheduler()
 
 
 @asynccontextmanager
@@ -75,8 +77,6 @@ app = FastAPI(
 
 logger = logging.getLogger(__name__)
 
-# Initialize Campaign Scheduler
-scheduler = CampaignScheduler()
 metrics_enabled = ENABLE_METRICS
 app.add_middleware(
     CORSMiddleware,
