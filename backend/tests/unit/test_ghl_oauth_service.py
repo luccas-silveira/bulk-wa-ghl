@@ -216,11 +216,11 @@ class TestGetValidAccessToken:
 
         db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value = mock_token
 
-        with patch.object(oauth_service, "refresh_token", new_callable=AsyncMock):
+        with patch.object(oauth_service, "refresh_token", new_callable=AsyncMock) as mock_refresh:
             with patch.object(oauth_service.encryption_service, "decrypt", return_value="new_token"):
                 result = await oauth_service.get_valid_access_token("loc1")
 
-        oauth_service.refresh_token.assert_awaited_once_with("loc1")
+        mock_refresh.assert_awaited_once_with("loc1")
 
 
 class TestExchangeCodeReturnsOnlyMetadata:

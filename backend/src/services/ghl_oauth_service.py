@@ -200,20 +200,15 @@ class GHLOAuthService:
         """
         token_record = self.db.query(GHLOAuthToken).filter(
             GHLOAuthToken.ghl_location_id == location_id
-        ).first()
+        ).with_for_update().first()
 
         if not token_record:
             raise ValueError(f"No OAuth token found for location {location_id}")
 
-        # Check if token is expired
         if token_record.is_expired():
-            # Refresh the token
             await self.refresh_token(location_id)
-
-            # Reload token record
             self.db.refresh(token_record)
 
-        # Decrypt and return access token
         return self.encryption_service.decrypt(token_record.access_token_encrypted)
 
     async def _store_tokens(self, location_id: str, token_data: Dict) -> None:
