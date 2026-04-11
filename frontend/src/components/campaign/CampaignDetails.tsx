@@ -37,8 +37,8 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({ campaignId, onClose }
   const pauseMutation = useMutation({
     mutationFn: () => campaignService.pauseCampaign(campaignId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] });
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign', campaignId], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['campaigns'], exact: false });
     },
   });
 
@@ -46,8 +46,8 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({ campaignId, onClose }
   const resumeMutation = useMutation({
     mutationFn: () => campaignService.resumeCampaign(campaignId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] });
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign', campaignId], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['campaigns'], exact: false });
     },
   });
 
@@ -55,7 +55,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({ campaignId, onClose }
   const deleteMutation = useMutation({
     mutationFn: () => campaignService.deleteCampaign(campaignId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaigns'], exact: false });
       onClose?.();
     },
   });
