@@ -7,12 +7,12 @@ import os
 from typing import List, Dict, Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from src.models.campaign import Campaign
 from src.models.message import Message
-from src.services.ghl_conversations_service import GHLConversationsService
+from src.services.ghl_conversations_service import GHLConversationsService, RateLimitExceeded
 from src.services.ghl_contacts_service import GHLContactsService
 from src.logging_config import reset_campaign_context, set_campaign_context
 
@@ -151,26 +151,50 @@ class CampaignExecutorService:
                                 location_id=campaign.ghl_location_id,
                                 contact_id=contact_id,
                                 message_text=message_text,
-                                media_url=media_url  # Send as attachment
+                                media_url=media_url
                             )
-
                             # Update message with success
                             message.status = 'sent'
-                            message.sent_at = datetime.utcnow()
+                            message.sent_at = datetime.now(timezone.utc)
                             message.ghl_message_id = result.get('messageId')
                             message.ghl_conversation_id = result.get('conversationId')
                             message.ghl_status = result.get('status')
-
                             successful_sends += 1
-                            logger.info(f"✓ Message sent successfully to {phone_number}")
+                            logger.info(f'✓ Message sent successfully to {phone_number}')
+
+                        except RateLimitExceeded:
+                            # CAMP-12: wait for rate limiter to refill and retry once
+                            wait_time = self.conversations_service.rate_limiter.wait_time()
+                            logger.warning(
+                                f'Rate limit hit sending to {phone_number}, waiting {max(wait_time, 1.0):.1f}s'
+                            )
+                            await asyncio.sleep(max(wait_time, 1.0))
+                            try:
+                                result = await self.conversations_service.send_message(
+                                    location_id=campaign.ghl_location_id,
+                                    contact_id=contact_id,
+                                    message_text=message_text,
+                                    media_url=media_url,
+                                )
+                                message.status = 'sent'
+                                message.sent_at = datetime.now(timezone.utc)
+                                message.ghl_message_id = result.get('messageId')
+                                message.ghl_conversation_id = result.get('conversationId')
+                                message.ghl_status = result.get('status')
+                                successful_sends += 1
+                                logger.info(f'✓ Message sent on retry to {phone_number}')
+                            except Exception as retry_err:
+                                message.status = 'failed'
+                                message.error_message = f'Rate limit retry failed: {retry_err}'
+                                failed_sends += 1
+                                logger.error(f'✗ Retry also failed for {phone_number}: {retry_err}')
 
                         except Exception as e:
                             # Update message with error
                             message.status = 'failed'
                             message.error_message = str(e)
-
                             failed_sends += 1
-                            logger.error(f"✗ Failed to send to {phone_number}: {str(e)}")
+                            logger.error(f'✗ Failed to send to {phone_number}: {str(e)}')
 
                         finally:
                             self.db.commit()

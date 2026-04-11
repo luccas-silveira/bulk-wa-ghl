@@ -226,3 +226,80 @@ class TestResumeSchemaConsistency:
         assert self.EXPECTED_KEYS.issubset(result.keys()), f'Missing: {self.EXPECTED_KEYS - result.keys()}'
         assert result['resumed_contacts'] == 1
         assert result['successful_sends'] == 1
+
+
+class TestRateLimitHandling:
+    """CAMP-12: RateLimitExceeded é capturado separadamente com retry."""
+
+    def test_rate_limit_retries_after_wait_and_succeeds(self):
+        """Após RateLimitExceeded, aguarda e reenvia — se retry OK, mensagem fica 'sent'."""
+        import asyncio
+        from src.services.campaign_executor_service import CampaignExecutorService
+        from src.services.ghl_conversations_service import RateLimitExceeded
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        db = MagicMock()
+        svc = CampaignExecutorService(db)
+
+        campaign = MagicMock()
+        campaign.id = 1
+        campaign.status = 'draft'
+        campaign.sending_speed = 'fast'
+        campaign.ghl_location_id = 'loc1'
+        campaign.get_user_ids_list.return_value = ['user1']
+        db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value = campaign
+
+        svc.contacts_service.get_or_create_contact = AsyncMock(return_value={'id': 'c1'})
+
+        # First call raises RateLimitExceeded, second call succeeds
+        mock_send = AsyncMock(side_effect=[
+            RateLimitExceeded('Rate limit'),
+            {'messageId': 'm1', 'conversationId': 'cv1'},
+        ])
+        svc.conversations_service.send_message = mock_send
+        svc.conversations_service.rate_limiter = MagicMock()
+        svc.conversations_service.rate_limiter.wait_time.return_value = 0.0
+
+        contacts = [{'phone_number': '+5511999990001', 'name': 'Alice'}]
+
+        with patch('src.services.campaign_executor_service.asyncio.sleep', new_callable=AsyncMock):
+            result = asyncio.run(svc.execute_campaign(1, contacts, [{'text': 'Hi'}]))
+
+        assert result['successful_sends'] == 1
+        assert result['failed_sends'] == 0
+        assert mock_send.call_count == 2  # original + 1 retry
+
+    def test_rate_limit_retry_also_fails_marks_message_failed(self):
+        """Se o retry também falhar, mensagem fica 'failed' e campanha não lança exceção."""
+        import asyncio
+        from src.services.campaign_executor_service import CampaignExecutorService
+        from src.services.ghl_conversations_service import RateLimitExceeded
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        db = MagicMock()
+        svc = CampaignExecutorService(db)
+
+        campaign = MagicMock()
+        campaign.id = 2
+        campaign.status = 'draft'
+        campaign.sending_speed = 'fast'
+        campaign.ghl_location_id = 'loc1'
+        campaign.get_user_ids_list.return_value = ['user1']
+        db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value = campaign
+
+        svc.contacts_service.get_or_create_contact = AsyncMock(return_value={'id': 'c1'})
+
+        # Both calls fail with RateLimitExceeded
+        svc.conversations_service.send_message = AsyncMock(
+            side_effect=RateLimitExceeded('Still rate limited')
+        )
+        svc.conversations_service.rate_limiter = MagicMock()
+        svc.conversations_service.rate_limiter.wait_time.return_value = 0.0
+
+        contacts = [{'phone_number': '+5511999990001', 'name': 'Alice'}]
+
+        with patch('src.services.campaign_executor_service.asyncio.sleep', new_callable=AsyncMock):
+            result = asyncio.run(svc.execute_campaign(2, contacts, [{'text': 'Hi'}]))
+
+        assert result['successful_sends'] == 0
+        assert result['failed_sends'] == 1
