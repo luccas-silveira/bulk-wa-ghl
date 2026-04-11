@@ -115,7 +115,17 @@ app.include_router(campaign_management.router)
 # Observability middleware
 @app.middleware("http")
 async def add_request_context(request: Request, call_next):
-    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    # Validate or generate X-Request-ID
+    client_request_id = request.headers.get("X-Request-ID")
+    if client_request_id:
+        try:
+            uuid.UUID(client_request_id)
+            request_id = client_request_id
+        except ValueError:
+            request_id = str(uuid.uuid4())
+    else:
+        request_id = str(uuid.uuid4())
+
     request_token = request_id_ctx_var.set(request_id)
     path_token = request_path_ctx_var.set(request.url.path)
     method_token = http_method_ctx_var.set(request.method)
@@ -125,13 +135,15 @@ async def add_request_context(request: Request, call_next):
 
     try:
         response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
         return response
     except Exception:
         api_request_errors.labels(method=request.method, path=request.url.path, status="500").inc()
         logger.exception("Unhandled exception during request")
         return JSONResponse(
             status_code=500,
-            content={"detail": "Internal server error"}
+            content={"detail": "Internal server error"},
+            headers={"X-Request-ID": request_id},
         )
     finally:
         duration = time.perf_counter() - start_time

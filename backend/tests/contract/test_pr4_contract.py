@@ -86,3 +86,36 @@ class TestMetricsAuth:
                 headers={"Authorization": "Bearer wrong_token"}
             )
         assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Task 7: INFRA-33 — X-Request-ID middleware hardening
+# ---------------------------------------------------------------------------
+import uuid as _uuid_module
+
+
+@pytest.mark.asyncio
+class TestRequestIDMiddleware:
+    """INFRA-33: X-Request-ID gerado server-side se ausente ou inválido; sempre na resposta."""
+
+    async def test_request_id_included_in_response_when_not_provided(self, async_client: AsyncClient):
+        """Sem X-Request-ID no request, a resposta deve incluir um UUID válido."""
+        response = await async_client.get("/health")
+        request_id = response.headers.get("X-Request-ID")
+        assert request_id is not None
+        # Must be a valid UUID
+        _uuid_module.UUID(request_id)  # raises ValueError if not valid UUID
+
+    async def test_valid_client_uuid_is_echoed_in_response(self, async_client: AsyncClient):
+        """X-Request-ID UUID válido do cliente deve ser ecoado na resposta."""
+        client_id = str(_uuid_module.uuid4())
+        response = await async_client.get("/health", headers={"X-Request-ID": client_id})
+        assert response.headers.get("X-Request-ID") == client_id
+
+    async def test_invalid_client_uuid_is_replaced_server_side(self, async_client: AsyncClient):
+        """X-Request-ID inválido do cliente deve ser substituído por UUID gerado pelo server."""
+        response = await async_client.get("/health", headers={"X-Request-ID": "not-a-uuid"})
+        server_id = response.headers.get("X-Request-ID")
+        assert server_id is not None
+        assert server_id != "not-a-uuid"
+        _uuid_module.UUID(server_id)  # must be a valid UUID
