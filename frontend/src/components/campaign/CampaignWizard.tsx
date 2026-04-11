@@ -178,6 +178,8 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
 
     if (errors.length > 0) {
       setCsvParseError(`Erros encontrados:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? `\n... e mais ${errors.length - 5} erros` : ''}`);
+    } else {
+      setCsvParseError(null); // clear any stale error from a previous failed parse
     }
 
     if (contacts.length === 0) {
@@ -185,7 +187,6 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
       setParsedContacts([]);
     } else {
       setParsedContacts(contacts);
-      setCsvParseError(null);
       setShowMapping(false);
     }
   };
