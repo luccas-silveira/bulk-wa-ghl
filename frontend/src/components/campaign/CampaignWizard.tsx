@@ -237,6 +237,18 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
   const handleSubmit = async () => {
     if (!validateStep(3)) return;
 
+    // Guard: ensure at least one message has text or media_url before submitting
+    const validMessages = formData.messages.filter(
+      (msg) => msg.text.trim() || (msg.media_url ?? '').trim()
+    );
+    if (validMessages.length === 0) {
+      setErrors((prev) => ({
+        ...prev,
+        messages: 'Pelo menos uma mensagem com texto ou URL de mídia é obrigatória',
+      }));
+      return;
+    }
+
     setLoading(true);
     try {
       const campaignRequest: CampaignCreateRequest = {
@@ -246,13 +258,11 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
         sending_speed: formData.sending_speed,
         schedule_type: formData.schedule_type,
         scheduled_time: formData.scheduled_time?.toISOString(),
-        messages: formData.messages
-          .filter(msg => msg.text.trim())
-          .map((msg, index) => ({
-            text: msg.text,
-            media_url: msg.media_url || undefined,
-            order: index + 1,
-          })),
+        messages: validMessages.map((msg, index) => ({
+          text: msg.text,
+          media_url: msg.media_url || undefined,
+          order: index + 1,
+        })),
         audience_criteria: {
           csv_data: parsedContacts,
         },
