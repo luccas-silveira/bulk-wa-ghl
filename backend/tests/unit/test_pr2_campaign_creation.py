@@ -74,12 +74,17 @@ class TestWAHA12LocationValidation:
 
         # Chain: db.query(X).filter_by(ghl_location_id=...).first() → mock_location
         # Chain: db.query(X).filter_by(ghl_user_id=...).first() → mock_user
-        call_count = [0]
+        from src.models.ghl_location import GHLLocation as _GHLLocation
+        from src.models.ghl_user import GHLUser as _GHLUser
+
         def query_side_effect(model):
             m = MagicMock()
-            m.filter_by.return_value.first.side_effect = [mock_location, mock_user]
-            # For campaign add/refresh
-            m.add = MagicMock()
+            if model == _GHLLocation:
+                m.filter_by.return_value.first.return_value = mock_location
+            elif model == _GHLUser:
+                m.filter_by.return_value.first.return_value = mock_user
+            else:
+                m.filter_by.return_value.first.return_value = MagicMock()
             return m
 
         db.query.side_effect = query_side_effect
@@ -127,4 +132,33 @@ class TestGHL22UserValidation:
 
         app.dependency_overrides.clear()
         assert resp.status_code == 422, f"Expected 422, got {resp.status_code}: {resp.text}"
+        assert "user" in resp.text.lower()
+
+    def test_no_user_ids_returns_422(self):
+        """Criar campanha sem ghl_user_ids nem ghl_user_id → HTTP 422."""
+        from src.main import app, get_db
+        from src.models.ghl_location import GHLLocation
+
+        db = MagicMock()
+        mock_location = MagicMock(spec=GHLLocation)
+
+        def query_side_effect(model):
+            m = MagicMock()
+            if model == GHLLocation:
+                m.filter_by.return_value.first.return_value = mock_location
+            else:
+                m.filter_by.return_value.first.return_value = MagicMock()
+            return m
+
+        db.query.side_effect = query_side_effect
+        client = _make_app_with_mock_db(db)
+
+        # payload without ghl_user_ids or ghl_user_id
+        payload = _valid_payload()
+        del payload["ghl_user_ids"]
+
+        resp = client.post("/campaigns", json=payload)
+        app.dependency_overrides.clear()
+
+        assert resp.status_code == 422, f"Expected 422 for no user IDs, got {resp.status_code}: {resp.text}"
         assert "user" in resp.text.lower()

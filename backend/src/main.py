@@ -235,6 +235,11 @@ async def create_campaign(
     # GHL-22: validate each ghl_user_id exists in ghl_users
     from src.models.ghl_user import GHLUser
     user_ids_to_validate = ghl_user_ids or ([ghl_user_id] if ghl_user_id else [])
+    if not user_ids_to_validate:
+        return JSONResponse(
+            status_code=422,
+            content={"detail": "At least one GHL user ID must be provided (ghl_user_ids or ghl_user_id)."}
+        )
     for uid in user_ids_to_validate:
         user = db.query(GHLUser).filter_by(ghl_user_id=uid).first()
         if not user:
