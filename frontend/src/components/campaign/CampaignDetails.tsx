@@ -16,8 +16,10 @@ import {
 import Card, { CardHeader, CardBody } from '../ui/Card';
 import Button from '../ui/Button';
 import CampaignStatusBadge from './CampaignStatusBadge';
+import MessageStatusBadge from './MessageStatusBadge';
 import CampaignActions from './CampaignActions';
 import { campaignService } from '../../services/campaign-service';
+import type { MessageStatus } from '../../types/campaign';
 
 export interface CampaignDetailsProps {
   campaignId: number;
@@ -260,9 +262,8 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({ campaignId, onClose }
                         </div>
                       </div>
                       <div className="ml-4">
-                        <CampaignStatusBadge
-                          status={message.status as any}
-                          showDot
+                        <MessageStatusBadge
+                          status={message.status as MessageStatus}
                         />
                       </div>
                     </div>
