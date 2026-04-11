@@ -81,3 +81,89 @@ class TestWebhookSignatureWarning:
         assert warning_call.kwargs.get("extra", {}).get("client_ip") is not None, (
             "Expected extra={'client_ip': ...} in logger.warning call"
         )
+
+
+class TestWebhookPayloadSchema:
+    """GHL-13: WebhookPayload Pydantic valida campos obrigatórios."""
+
+    def test_missing_location_id_returns_422(self):
+        """Payload sem locationId → HTTP 422 (schema validation)."""
+        from src.main import app, get_db
+        import json
+
+        db = MagicMock()
+        app.dependency_overrides[get_db] = lambda: db
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("src.services.ghl_webhook_handler.GHLWebhookHandler.validate_signature", return_value=True):
+            payload = json.dumps({
+                "type": "MessageDelivered",
+                # locationId missing
+                "messageId": "m1"
+            }).encode()
+            resp = client.post(
+                "/webhooks/ghl/messages",
+                content=payload,
+                headers={"X-GHL-Signature": "fake", "Content-Type": "application/json"},
+            )
+
+        app.dependency_overrides.clear()
+        assert resp.status_code == 422, f"Expected 422, got {resp.status_code}: {resp.text}"
+
+    def test_valid_payload_is_accepted(self):
+        """Payload com campos obrigatórios passa pela validação de schema."""
+        from src.main import app, get_db
+        import json
+
+        db = MagicMock()
+        app.dependency_overrides[get_db] = lambda: db
+        client = TestClient(app, raise_server_exceptions=False)
+
+        with patch("src.api.ghl_webhooks.GHLWebhookHandler") as mock_handler_cls:
+            mock_handler = MagicMock()
+            mock_handler.validate_signature.return_value = True
+            from unittest.mock import AsyncMock
+            mock_handler.process_webhook = AsyncMock(
+                return_value={"status": "processed", "webhook_id": "wh_1"}
+            )
+            mock_handler_cls.return_value = mock_handler
+
+            payload = json.dumps({
+                "type": "MessageDelivered",
+                "locationId": "loc_abc",
+                "messageId": "m1",
+            }).encode()
+            resp = client.post(
+                "/webhooks/ghl/messages",
+                content=payload,
+                headers={"X-GHL-Signature": "fake", "Content-Type": "application/json"},
+            )
+
+        app.dependency_overrides.clear()
+        assert resp.status_code in (200, 201), f"Expected 200, got {resp.status_code}: {resp.text}"
+
+
+class TestWebhookCleanupJob:
+    """GHL-10: job APScheduler deleta processed_webhooks mais velhos que 30 dias."""
+
+    def test_cleanup_job_is_registered(self):
+        """O job 'cleanup_old_webhooks' está registrado no scheduler após startup."""
+        from src.main import scheduler
+
+        jobs = [j.id for j in scheduler.scheduler.get_jobs()]
+        assert "cleanup_old_webhooks" in jobs, (
+            f"Expected 'cleanup_old_webhooks' job in scheduler, found: {jobs}"
+        )
+
+    def test_cleanup_job_runs_with_interval_trigger(self):
+        """O job de cleanup usa IntervalTrigger (não DateTrigger)."""
+        from src.main import scheduler
+        from apscheduler.triggers.interval import IntervalTrigger
+
+        for job in scheduler.scheduler.get_jobs():
+            if job.id == "cleanup_old_webhooks":
+                assert isinstance(job.trigger, IntervalTrigger), (
+                    f"Expected IntervalTrigger, got {type(job.trigger)}"
+                )
+                return
+        pytest.fail("cleanup_old_webhooks job not found")

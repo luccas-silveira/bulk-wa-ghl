@@ -4,13 +4,28 @@ Handles incoming webhooks from GoHighLevel
 """
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from typing import Dict
+from typing import Dict, Optional
 
 from src.database import get_db
 from src.services.ghl_webhook_handler import GHLWebhookHandler
 
 logger = logging.getLogger(__name__)
+
+
+class WebhookPayload(BaseModel):
+    """Schema Pydantic para validação de webhooks GHL (GHL-13)."""
+    type: str = Field(..., description="Webhook event type")
+    locationId: str = Field(..., description="GHL location ID")
+    messageId: Optional[str] = None
+    conversationId: Optional[str] = None
+    contactId: Optional[str] = None
+    contactPhone: Optional[str] = None
+    messageText: Optional[str] = None
+    timestamp: Optional[str] = None
+    errorCode: Optional[str] = None
+    errorMessage: Optional[str] = None
 
 router = APIRouter(prefix="/webhooks/ghl", tags=["GHL Webhooks"])
 
@@ -76,6 +91,15 @@ async def process_webhook(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid JSON payload: {str(e)}"
+        )
+
+    # GHL-13: validate payload structure
+    try:
+        WebhookPayload.model_validate(payload)
+    except Exception as e:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid webhook payload: {e}"
         )
 
     # Extract event type
