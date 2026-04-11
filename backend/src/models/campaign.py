@@ -4,8 +4,9 @@ Represents a WhatsApp message campaign
 """
 from sqlalchemy import Column, Integer, String, TIMESTAMP, ForeignKey, Index, Text, JSON
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 from src.database import Base
+from src.exceptions import InvalidTransitionError
 import json
 
 
@@ -71,6 +72,32 @@ class Campaign(Base):
         Index('idx_campaigns_created_at', 'created_at'),
         Index('idx_campaigns_ghl_location', 'ghl_location_id'),
     )
+
+    VALID_STATUSES: set = {
+        'draft', 'scheduled', 'executing', 'paused', 'completed', 'failed', 'cancelled'
+    }
+
+    VALID_TRANSITIONS: dict = {
+        'draft':     {'scheduled', 'executing', 'failed'},
+        'executing': {'paused', 'completed', 'failed'},
+        'paused':    {'executing'},
+        'scheduled': {'cancelled', 'failed', 'executing'},
+    }
+
+    @validates('status')
+    def validate_status(self, key: str, value: str) -> str:
+        if value not in self.VALID_STATUSES:
+            raise ValueError(
+                f"Invalid campaign status: '{value}'. Must be one of {sorted(self.VALID_STATUSES)}"
+            )
+        return value
+
+    def transition_to(self, new_status: str) -> None:
+        """Transition to new_status. Raises InvalidTransitionError if not allowed."""
+        allowed = self.VALID_TRANSITIONS.get(self.status, set())
+        if new_status not in allowed:
+            raise InvalidTransitionError(self.status, new_status, allowed)
+        self.status = new_status
 
     def __repr__(self):
         return (f"<Campaign(id={self.id}, name='{self.name}', status='{self.status}', "
