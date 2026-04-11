@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from src.services.token_encryption_service import TokenEncryptionService
 from src.models.ghl_oauth_token import GHLOAuthToken
@@ -54,6 +55,26 @@ class GHLOAuthService:
                 "GHL_CLIENT_SECRET, and GHL_REDIRECT_URI environment variables."
             )
 
+    @retry(
+        retry=retry_if_exception_type(httpx.RequestError),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        reraise=True
+    )
+    async def _call_token_endpoint(self, data: dict) -> dict:
+        """
+        POST to GHL token endpoint with timeout and retry on network errors.
+        Retries only on RequestError (transient network issues), not on HTTPStatusError (4xx/5xx).
+        """
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                f"{self.GHL_OAUTH_BASE_URL}/token",
+                data=data,
+                headers={"Content-Type": "application/x-www-form-urlencoded"}
+            )
+            response.raise_for_status()
+            return response.json()
+
     def get_authorization_url(self, state: Optional[str] = None) -> str:
         """
         Generate OAuth authorization URL for user to grant access
@@ -90,42 +111,33 @@ class GHLOAuthService:
         Raises:
             ValueError: If token exchange fails
         """
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            try:
-                response = await client.post(
-                    f"{self.GHL_OAUTH_BASE_URL}/token",
-                    data={
-                        "grant_type": "authorization_code",
-                        "code": code,
-                        "client_id": self.client_id,
-                        "client_secret": self.client_secret,
-                        "redirect_uri": self.redirect_uri,
-                    },
-                    headers={"Content-Type": "application/x-www-form-urlencoded"}
-                )
+        try:
+            token_data = await self._call_token_endpoint({
+                "grant_type": "authorization_code",
+                "code": code,
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "redirect_uri": self.redirect_uri,
+            })
 
-                response.raise_for_status()
-                token_data = response.json()
+            location_id = token_data.get("locationId")
+            if not location_id:
+                raise ValueError("No locationId in token response")
 
-                # Store tokens in database
-                location_id = token_data.get("locationId")
-                if not location_id:
-                    raise ValueError("No locationId in token response")
+            await self._store_tokens(location_id, token_data)
 
-                await self._store_tokens(location_id, token_data)
+            return token_data
 
-                return token_data
-
-            except httpx.HTTPStatusError as e:
-                logger.error(
-                    f"Token exchange failed: status={e.response.status_code}, body={e.response.text}"
-                )
-                raise ValueError("Token exchange failed. Check server logs for details.")
-            except ValueError:
-                raise
-            except Exception as e:
-                logger.error(f"Token exchange error: {str(e)}", exc_info=True)
-                raise ValueError("Token exchange error. Check server logs for details.")
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"Token exchange failed: status={e.response.status_code}, body={e.response.text}"
+            )
+            raise ValueError("Token exchange failed. Check server logs for details.")
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.error(f"Token exchange error: {str(e)}", exc_info=True)
+            raise ValueError("Token exchange error. Check server logs for details.")
 
     async def refresh_token(self, location_id: str) -> Dict:
         """
@@ -151,37 +163,27 @@ class GHLOAuthService:
         # Decrypt refresh token
         refresh_token = self.encryption_service.decrypt(token_record.refresh_token_encrypted)
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            try:
-                response = await client.post(
-                    f"{self.GHL_OAUTH_BASE_URL}/token",
-                    data={
-                        "grant_type": "refresh_token",
-                        "refresh_token": refresh_token,
-                        "client_id": self.client_id,
-                        "client_secret": self.client_secret,
-                    },
-                    headers={"Content-Type": "application/x-www-form-urlencoded"}
-                )
+        try:
+            token_data = await self._call_token_endpoint({
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+            })
 
-                response.raise_for_status()
-                token_data = response.json()
+            await self._store_tokens(location_id, token_data)
+            return token_data
 
-                # Update tokens in database
-                await self._store_tokens(location_id, token_data)
-
-                return token_data
-
-            except httpx.HTTPStatusError as e:
-                logger.error(
-                    f"Token refresh failed: location={location_id}, status={e.response.status_code}, body={e.response.text}"
-                )
-                raise ValueError("Token refresh failed. Check server logs for details.")
-            except ValueError:
-                raise
-            except Exception as e:
-                logger.error(f"Token refresh error: location={location_id}, {str(e)}", exc_info=True)
-                raise ValueError("Token refresh error. Check server logs for details.")
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"Token refresh failed: location={location_id}, status={e.response.status_code}, body={e.response.text}"
+            )
+            raise ValueError("Token refresh failed. Check server logs for details.")
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.error(f"Token refresh error: location={location_id}, {str(e)}", exc_info=True)
+            raise ValueError("Token refresh error. Check server logs for details.")
 
     async def get_valid_access_token(self, location_id: str) -> str:
         """
