@@ -158,3 +158,106 @@ class TestSendMessage401TokenRefresh:
             with pytest.raises((httpx.HTTPStatusError, RetryError)):
                 asyncio.run(svc.send_message(location_id='loc1', contact_id='c1', message_text='Hi'))
         # Test passes if no AttributeError (oauth_service not accessed on private token path)
+
+
+class TestSyncUsersMarksInactive:
+    """GHL-15: após sync, usuários não retornados pela API ficam is_active=False."""
+
+    def test_users_missing_from_api_marked_inactive(self):
+        """Se DB tem user_A e user_B, mas API retorna só user_A, user_B vira is_active=False."""
+        import asyncio
+        from src.services.ghl_users_service import GHLUsersService
+        from src.models.ghl_user import GHLUser
+
+        db = MagicMock()
+        svc = GHLUsersService(db)
+        svc.private_token = 'tok'
+        svc.use_private_token = True
+
+        # API returns only user_A
+        api_users = [{'id': 'user_A', 'name': 'Alice', 'email': 'a@x.com'}]
+        svc.fetch_users_from_api = AsyncMock(return_value=api_users)
+
+        # DB has user_A (will be found)
+        user_A = MagicMock(spec=GHLUser)
+        user_A.ghl_user_id = 'user_A'
+        user_A.is_active = True
+
+        def mock_filter_by(**kwargs):
+            uid = kwargs.get('ghl_user_id')
+            m = MagicMock()
+            m.first.return_value = user_A if uid == 'user_A' else None
+            return m
+
+        db.query.return_value.filter_by = mock_filter_by
+
+        # Track bulk update calls
+        update_calls = []
+        def mock_update(vals, synchronize_session=False):
+            update_calls.append(vals)
+        db.query.return_value.filter.return_value.filter.return_value.update = mock_update
+
+        asyncio.run(svc.sync_users_for_location('loc1'))
+
+        # Verify bulk update with is_active=False was called
+        assert any(
+            vals.get('is_active') is False
+            for vals in update_calls
+        ), f'Expected bulk update with is_active=False, got: {update_calls}'
+
+    def test_all_api_users_remain_active(self):
+        """Usuários presentes na API ficam is_active=True após sync."""
+        import asyncio
+        from src.services.ghl_users_service import GHLUsersService
+        from src.models.ghl_user import GHLUser
+
+        db = MagicMock()
+        svc = GHLUsersService(db)
+        svc.private_token = 'tok'
+        svc.use_private_token = True
+
+        api_users = [{'id': 'user_X', 'name': 'Xena', 'email': 'x@x.com'}]
+        svc.fetch_users_from_api = AsyncMock(return_value=api_users)
+
+        user_X = MagicMock(spec=GHLUser)
+        user_X.ghl_user_id = 'user_X'
+        user_X.is_active = False  # was inactive
+
+        def mock_filter_by(**kwargs):
+            m = MagicMock()
+            m.first.return_value = user_X
+            return m
+
+        db.query.return_value.filter_by = mock_filter_by
+        db.query.return_value.filter.return_value.filter.return_value.update = MagicMock()
+
+        asyncio.run(svc.sync_users_for_location('loc1'))
+
+        assert user_X.is_active is True
+
+    def test_empty_api_response_marks_all_inactive(self):
+        """API retorna vazio → todos os usuários locais viram is_active=False."""
+        import asyncio
+        from src.services.ghl_users_service import GHLUsersService
+
+        db = MagicMock()
+        svc = GHLUsersService(db)
+        svc.private_token = 'tok'
+        svc.use_private_token = True
+
+        # API returns empty list
+        svc.fetch_users_from_api = AsyncMock(return_value=[])
+
+        update_calls = []
+        def mock_update(vals, synchronize_session=False):
+            update_calls.append(vals)
+
+        # Empty API: no filter_by calls needed (no users to upsert)
+        db.query.return_value.filter.return_value.update = mock_update
+
+        asyncio.run(svc.sync_users_for_location('loc1'))
+
+        assert any(
+            vals.get('is_active') is False
+            for vals in update_calls
+        ), f'Expected is_active=False update for empty API, got: {update_calls}'

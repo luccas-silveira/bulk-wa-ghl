@@ -78,7 +78,9 @@ class GHLUsersService:
 
     async def sync_users_for_location(self, location_id: str) -> List[GHLUser]:
         """
-        Fetch users from GHL API and sync to database
+        Fetch users from GHL API and sync to database.
+        Users returned by API → is_active=True (upsert).
+        Users in DB but NOT returned by API → is_active=False (GHL-15).
 
         Args:
             location_id: GHL location ID
@@ -89,36 +91,46 @@ class GHLUsersService:
         users_data = await self.fetch_users_from_api(location_id)
 
         synced_users = []
+        api_user_ids = set()
 
         for user_data in users_data:
-            ghl_user_id = user_data.get("id")
+            ghl_user_id = user_data.get('id')
+            api_user_ids.add(ghl_user_id)
 
-            # Check if user already exists
-            existing_user = self.db.query(GHLUser).filter_by(
-                ghl_user_id=ghl_user_id
-            ).first()
+            existing_user = self.db.query(GHLUser).filter_by(ghl_user_id=ghl_user_id).first()
 
             if existing_user:
-                # Update existing user
-                existing_user.name = user_data.get("name", "")
-                existing_user.email = user_data.get("email")
-                existing_user.phone = user_data.get("phone")
-                existing_user.role = user_data.get("role")
+                existing_user.name = user_data.get('name', '')
+                existing_user.email = user_data.get('email')
+                existing_user.phone = user_data.get('phone')
+                existing_user.role = user_data.get('role')
                 existing_user.is_active = True
                 synced_users.append(existing_user)
             else:
-                # Create new user
                 new_user = GHLUser(
                     ghl_user_id=ghl_user_id,
                     ghl_location_id=location_id,
-                    name=user_data.get("name", ""),
-                    email=user_data.get("email"),
-                    phone=user_data.get("phone"),
-                    role=user_data.get("role"),
-                    is_active=True
+                    name=user_data.get('name', ''),
+                    email=user_data.get('email'),
+                    phone=user_data.get('phone'),
+                    role=user_data.get('role'),
+                    is_active=True,
                 )
                 self.db.add(new_user)
                 synced_users.append(new_user)
+
+        # GHL-15: mark users removed from GHL as inactive
+        if api_user_ids:
+            self.db.query(GHLUser).filter(
+                GHLUser.ghl_location_id == location_id
+            ).filter(
+                GHLUser.ghl_user_id.notin_(api_user_ids),
+            ).update({'is_active': False}, synchronize_session=False)
+        else:
+            # API returned empty → mark ALL local users for this location inactive
+            self.db.query(GHLUser).filter(
+                GHLUser.ghl_location_id == location_id
+            ).update({'is_active': False}, synchronize_session=False)
 
         self.db.commit()
         return synced_users
