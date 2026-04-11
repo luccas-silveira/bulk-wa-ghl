@@ -25,10 +25,11 @@ FROM python:3.12-slim
 # Set working directory
 WORKDIR /app
 
-# Install runtime dependencies
+# Install runtime dependencies (curl required for HEALTHCHECK)
 RUN apt-get update && apt-get install -y \
     postgresql-client \
     libpq-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python packages from builder
@@ -46,9 +47,9 @@ USER appuser
 # Expose port
 EXPOSE 8000
 
-# Health check using httpx (already in requirements, unlike requests)
+# Health check using curl
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import httpx; httpx.get('http://localhost:8000/health', timeout=5)" || exit 1
+    CMD curl -sf http://localhost:8000/health || exit 1
 
 # Start application with gunicorn
 CMD ["gunicorn", "src.main:app", \
