@@ -1,0 +1,23 @@
+# .dockerignore (raiz)
+.git
+.gitignore
+.env
+.env.*
+*.env
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.pytest_cache
+**/.pytest_cache
+node_modules
+**/node_modules
+frontend/node_modules
+docs/
+*.md
+!README.md
+tests/
+backend/tests/
+.vscode
+.idea
+*.log
