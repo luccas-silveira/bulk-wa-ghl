@@ -53,7 +53,8 @@ class CampaignExecutorService:
         self,
         campaign_id: int,
         contacts: List[Dict[str, str]],
-        messages_template: List[Dict[str, str]]
+        messages_template: List[Dict[str, str]],
+        start_user_index: int = 0,   # CAMP-04: resume from correct round-robin position
     ) -> Dict:
         """
         Execute a campaign by sending messages to all contacts
@@ -97,7 +98,7 @@ class CampaignExecutorService:
         total_contacts = len(contacts)
         successful_sends = 0
         failed_sends = 0
-        user_index = 0  # Track current user in round-robin
+        user_index = start_user_index  # Resume from correct position in round-robin (CAMP-04)
 
         try:
             # Send messages to each contact
@@ -299,60 +300,76 @@ class CampaignExecutorService:
         Uses persisted contacts_data and messages_template to re-execute
         only the contacts that haven't been sent to yet.
 
-        Args:
-            campaign_id: Campaign database ID
-
-        Returns:
-            Dictionary with execution summary
+        Returns a consistent dict with keys:
+            campaign_id, status, resumed_contacts, successful_sends, failed_sends,
+            message (optional, early-exit paths only)
         """
         campaign = self.db.query(Campaign).filter(Campaign.id == campaign_id).with_for_update().first()
         if not campaign:
-            raise ValueError(f"Campaign {campaign_id} not found")
+            raise ValueError(f'Campaign {campaign_id} not found')
 
-        # Check if we have persisted data to resume from
+        # Early-exit: no persisted data
         if not campaign.contacts_data or not campaign.messages_template:
-            logger.warning(f"Campaign {campaign_id} has no persisted data, marking as completed")
+            logger.warning(f'Campaign {campaign_id} has no persisted data, marking as completed')
             campaign.transition_to('completed')
             self.db.commit()
             return {
                 'campaign_id': campaign_id,
                 'status': 'completed',
-                'message': 'No persisted data available for resume'
+                'resumed_contacts': 0,
+                'successful_sends': 0,
+                'failed_sends': 0,
+                'message': 'No persisted data available for resume',
             }
 
         # Find phones that already received messages
         sent_phones = set()
-        existing_messages = self.db.query(Message.recipient_phone).filter(
-            Message.campaign_id == campaign_id,
-            Message.status.in_(['sent', 'delivered', 'read'])
-        ).all()
+        existing_messages = (
+            self.db.query(Message.recipient_phone)
+            .filter(Message.campaign_id == campaign_id)
+            .filter(Message.status.in_(['sent', 'delivered', 'read']))
+            .all()
+        )
         for (phone,) in existing_messages:
             sent_phones.add(phone)
 
         # Filter contacts to only those not yet sent
         remaining_contacts = [
-            c for c in campaign.contacts_data
-            if c.get('phone_number') not in sent_phones
+            c for c in campaign.contacts_data if c.get('phone_number') not in sent_phones
         ]
 
+        # Early-exit: all contacts already sent
         if not remaining_contacts:
-            logger.info(f"Campaign {campaign_id}: all contacts already sent, marking completed")
+            logger.info(f'Campaign {campaign_id}: all contacts already sent, marking completed')
             campaign.transition_to('completed')
             self.db.commit()
             return {
                 'campaign_id': campaign_id,
                 'status': 'completed',
-                'remaining_contacts': 0,
-                'message': 'All contacts already sent'
+                'resumed_contacts': 0,
+                'successful_sends': 0,
+                'failed_sends': 0,
+                'message': 'All contacts already sent',
             }
 
-        logger.info(f"Resuming campaign {campaign_id}: {len(remaining_contacts)} contacts remaining")
-
-        # Re-execute with remaining contacts
-        result = await self.execute_campaign(
-            campaign_id=campaign_id,
-            contacts=remaining_contacts,
-            messages_template=campaign.messages_template
+        start_user_index = len(sent_phones)  # CAMP-04: continue round-robin from correct position
+        logger.info(
+            f'Resuming campaign {campaign_id}: {len(remaining_contacts)} contacts remaining, '
+            f'start_user_index={start_user_index}'
         )
 
-        return result
+        result = await self.execute_campaign(
+            campaign_id,
+            remaining_contacts,
+            campaign.messages_template,
+            start_user_index,
+        )
+
+        # CAMP-09: normalize schema
+        return {
+            'campaign_id': campaign_id,
+            'status': result['status'],
+            'resumed_contacts': result['total_contacts'],
+            'successful_sends': result['successful_sends'],
+            'failed_sends': result['failed_sends'],
+        }
