@@ -164,9 +164,9 @@ class GHLConversationsService:
 
         # Prepare request payload
         payload = {
-            "type": "SMS",
-            "contactId": contact_id,  # GHL contact ID (not phone number)
-            "message": message_text or ""  # Empty string if only media
+            'type': 'WhatsApp',  # GHL-06: was "SMS"
+            'contactId': contact_id,  # GHL contact ID (not phone number)
+            'message': message_text or ''  # Empty string if only media
         }
 
         if media_url:
@@ -198,10 +198,14 @@ class GHLConversationsService:
             except httpx.HTTPStatusError as e:
                 # Log detailed error information
                 error_body = e.response.text if hasattr(e.response, 'text') else 'No response body'
-                logger.error(f"❌ GHL API Error: Status {e.response.status_code}, URL: {e.request.url}, Body: {error_body}")
+                logger.error(f'❌ GHL API Error: Status {e.response.status_code}, URL: {e.request.url}, Body: {error_body}')
 
-                if e.response.status_code == 429:
-                    raise RateLimitExceeded("GHL API rate limit exceeded")
+                if e.response.status_code == 401 and not self.use_private_token:
+                    # GHL-08: token expired at runtime → force refresh, then re-raise for @retry
+                    logger.warning(f'Token expired for location {location_id}, forcing refresh')
+                    await self.oauth_service.refresh_token(location_id)
+                elif e.response.status_code == 429:
+                    raise RateLimitExceeded('GHL API rate limit exceeded')
                 raise
 
     @retry(
