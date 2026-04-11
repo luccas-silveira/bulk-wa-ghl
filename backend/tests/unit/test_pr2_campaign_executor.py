@@ -61,3 +61,31 @@ class TestSendingSpeedWarning:
         assert "medium" in CampaignExecutorService.SPEED_DELAYS
         assert "fast" in CampaignExecutorService.SPEED_DELAYS
         assert CampaignExecutorService.SPEED_DELAYS.get("turbo") is None
+
+    def test_warns_on_unknown_sending_speed(self):
+        """execute_campaign emite logger.warning quando sending_speed é desconhecida."""
+        import asyncio
+        from unittest.mock import patch, MagicMock, AsyncMock
+        from src.services.campaign_executor_service import CampaignExecutorService
+        from datetime import datetime, timezone
+
+        db = MagicMock()
+        svc = CampaignExecutorService(db)
+
+        campaign = MagicMock()
+        campaign.id = 1
+        campaign.sending_speed = "turbo"  # unknown value
+        campaign.status = "draft"
+        campaign.ghl_location_id = "loc1"
+        campaign.get_user_ids_list.return_value = ["user_1"]
+
+        db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value = campaign
+
+        with patch("src.services.campaign_executor_service.logger") as mock_logger:
+            with patch.object(svc.contacts_service, "get_or_create_contact", new_callable=AsyncMock):
+                with patch.object(svc.conversations_service, "send_message", new_callable=AsyncMock):
+                    asyncio.run(svc.execute_campaign(1, [], []))  # empty contacts — exits loop immediately
+
+        mock_logger.warning.assert_called()
+        warning_call = str(mock_logger.warning.call_args_list)
+        assert "turbo" in warning_call

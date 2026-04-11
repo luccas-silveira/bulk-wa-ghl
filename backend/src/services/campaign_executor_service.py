@@ -5,6 +5,7 @@ Handles the execution of WhatsApp campaigns through GHL Conversations API
 import asyncio
 import os
 from typing import List, Dict, Optional
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import datetime
 import logging
@@ -236,8 +237,6 @@ class CampaignExecutorService:
         Returns:
             Dictionary with campaign status and statistics
         """
-        from sqlalchemy import func
-
         campaign = self.db.query(Campaign).filter(Campaign.id == campaign_id).first()
         if not campaign:
             raise ValueError(f"Campaign {campaign_id} not found")
@@ -249,7 +248,7 @@ class CampaignExecutorService:
             .all()
         )
 
-        status_counts = {"pending": 0, "sent": 0, "delivered": 0, "read": 0, "failed": 0}
+        status_counts = {'pending': 0, 'sent': 0, 'delivered': 0, 'read': 0, 'failed': 0}
         total = 0
         for status, cnt in agg_rows:
             if status in status_counts:
@@ -257,13 +256,13 @@ class CampaignExecutorService:
             total += cnt
 
         return {
-            "campaign_id": campaign_id,
-            "name": campaign.name,
-            "status": campaign.status,
-            "ghl_location_id": campaign.ghl_location_id,
-            "sending_speed": campaign.sending_speed,
-            "created_at": campaign.created_at.isoformat() if campaign.created_at else None,
-            "messages": {"total": total, "by_status": status_counts},
+            'campaign_id': campaign_id,
+            'name': campaign.name,
+            'status': campaign.status,
+            'ghl_location_id': campaign.ghl_location_id,
+            'sending_speed': campaign.sending_speed,
+            'created_at': campaign.created_at.isoformat() if campaign.created_at else None,
+            'messages': {'total': total, 'by_status': status_counts},
         }
 
     async def get_campaign_messages(
