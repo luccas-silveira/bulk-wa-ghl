@@ -2,7 +2,7 @@
 
 **Propósito:** rastreamento operacional do [plano mestre](plano-implementacao-mestre.md).
 **Fonte da verdade descritiva:** `plano-implementacao-mestre.md` contém descrição detalhada de cada item (arquivo, linha, ação específica, critérios de conclusão). Este documento só rastreia status e serve como painel executável.
-**Última atualização:** 2026-04-10 (EPIC-03 concluído)
+**Última atualização:** 2026-04-11 (EPIC-04 concluído, EPIC-05 parcial + EPIC-06 concluídos)
 **Branch ativa:** `004-campaign-management`
 
 ---
@@ -18,11 +18,11 @@
 
 | Fase | Objetivo | EPICs incluídos | Itens | Concluídos |
 |------|----------|-----------------|------:|-----------:|
-| **0** — Bloqueadores de produção | Sistema deployável, seguro, timezone correto, secrets validados, pool controlado, dashboard sem dados fake | EPIC-01, 02, 03, 04, 05 (críticos/altos), 06 (validadores), 11 (ANA-01/02/03) | 41 | 16 |
+| **0** — Bloqueadores de produção | Sistema deployável, seguro, timezone correto, secrets validados, pool controlado, dashboard sem dados fake | EPIC-01, 02, 03, 04, 05 (críticos/altos), 06 (validadores), 11 (ANA-01/02/03) | 41 | 37 |
 | **1** — Estabilidade e segurança | State machine, webhooks idempotentes, telefone E.164, router frontend, UI crítica, infra de deploy, observabilidade | EPIC-05 (resto), 06 (resto), 07, 08, 09, 12, 13 (críticos), 14 (críticos/altos), 15, 17 | 73 | 0 |
 | **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 0 |
 | **Fora de fase** | EPIC-18 Opção B (remoção WAHA) + RAIZ-09 (endpoint createCampaign) | EPIC-18, RAIZ-09 | 6 | 5 |
-| **Total** | | | **172** | **21** |
+| **Total** | | | **172** | **42** |
 
 **Notas sobre contagem:**
 - **Fase 3 (Polish e Backlog)** não aparece como linha separada: os itens de severidade Baixa que o plano mestre consolida em Fase 3 aqui ficam dentro de seus EPICs originais nas Fases 1 e 2, para evitar duplicação.
@@ -32,7 +32,9 @@
 
 ## Próximo passo recomendado
 
-**EPIC-03 — Configuração, Secrets e Startup Validation** (9 itens, sem dependências bloqueantes) e **EPIC-05 — Concorrência e Pool** (itens críticos/altos, desbloqueados desde EPIC-01). Podem rodar em paralelo.
+**EPIC-11 — Analytics** (3 itens críticos de Fase 0, especialmente ANA-01 campo `timeline` no dashboard, ANA-02 padronização de status, ANA-03 denominador de taxa de entrega). EPIC-04 concluído.
+
+**PERS-25** (AsyncSession + asyncpg) está pendente do EPIC-05 — planejado em PR separado; impacto alto mas isolável.
 
 **Atenção ao risco R01** (plano mestre, linha 866): ao rodar `alembic upgrade head` em banco já populado (staging/produção), usar `alembic stamp eb03c3cc8781` antes de `alembic upgrade head` para não re-executar o schema inicial. Em banco vazio, rodar `alembic upgrade head` diretamente (aplica os dois revisions em sequência).
 
@@ -93,39 +95,39 @@ Critérios de saída (plano mestre, linha 568):
 - [x] **INFRA-35** — Usar `${POSTGRES_PASSWORD:?...}` em vez de `${POSTGRES_PASSWORD:-wpp_disp_password}` em `docker-compose.yml:10` (Baixo)
 
 ### EPIC-04 — Segurança OAuth e Tokens
-**Dependências:** EPIC-03 • **Itens:** 9 • **Concluídos:** 0 • **Status:** Bloqueado por EPIC-03
+**Dependências:** EPIC-03 • **Itens:** 9 • **Concluídos:** 9 • **Status:** ✅ Concluído (2026-04-11)
 
-- [ ] **GHL-01** — `with_for_update()` na query do token antes de verificar expiração em `ghl_oauth_service.py:184-200` (Médio)
-- [ ] **GHL-02** — Filtrar `access_token`/`refresh_token` antes de armazenar em `raw_response` (Baixo)
-- [ ] **GHL-03** — Gerar `state` no authorize, armazenar com TTL, validar no callback em `api/ghl_oauth.py:45-50,68-69` (Médio)
-- [ ] **GHL-12** — Retornar apenas metadata (locationId, scope, expiresIn), nunca tokens (Baixo)
-- [ ] **GHL-16** — Adicionar `@retry` com tenacity em `exchange_code_for_token` e `refresh_token` (Baixo)
-- [ ] **GHL-17** — Validar campos obrigatórios na resposta OAuth antes de armazenar (Baixo)
-- [ ] **GHL-18** — Adicionar `timeout=10.0` no `httpx.AsyncClient()` em `ghl_oauth_service.py:90,145` (Baixo)
-- [ ] **GHL-20** — Suportar múltiplas chaves Fernet (atual + anteriores) em `token_encryption_service.py:25-38` (Alto)
-- [ ] **GHL-23** — Logar detalhe, retornar mensagem genérica em `ghl_oauth_service.py:117,167` (Baixo)
+- [x] **GHL-01** — `with_for_update()` na query do token antes de verificar expiração em `ghl_oauth_service.py` (Médio)
+- [x] **GHL-02** — Filtrar `access_token`/`refresh_token` antes de armazenar em `raw_response` (Baixo)
+- [x] **GHL-03** — CSRF state gerado pelo servidor com HMAC-SHA256, validado no callback em `api/ghl_oauth.py` (Médio)
+- [x] **GHL-12** — Retornar apenas metadata (location_id, scope, expires_in), nunca tokens brutos (Baixo)
+- [x] **GHL-16** — `@retry` com tenacity em `_call_token_endpoint` (network errors only, não 4xx) (Baixo)
+- [x] **GHL-17** — Validar campos obrigatórios na resposta OAuth antes de armazenar (Baixo)
+- [x] **GHL-18** — `timeout=10.0` no `httpx.AsyncClient()` em `_call_token_endpoint` (Baixo)
+- [x] **GHL-20** — MultiFernet com chaves separadas por vírgula em `token_encryption_service.py` (Alto)
+- [x] **GHL-23** — Logar detalhe internamente, retornar mensagem genérica ao cliente (Baixo)
 
 ### EPIC-05 — Concorrência, Pool e Session Management (itens críticos/altos)
-**Dependências:** EPIC-01 • **Itens:** 11 (dos 14 totais; 3 médios vão para Fase 1) • **Concluídos:** 0 • **Status:** Parcialmente bloqueado por EPIC-01
+**Dependências:** EPIC-01 • **Itens:** 11 (dos 14 totais; 3 médios vão para Fase 1) • **Concluídos:** 10 • **Status:** [~] Em andamento — PERS-25 (AsyncSession) pendente, planejado em PR separado (2026-04-11)
 
-- [ ] **PERS-20** — Adicionar `pool_timeout=30` ao `create_engine()` em `database.py:8-15` (Baixo)
-- [ ] **PERS-22** — Rollback no except do background task de `main.py:389-391`; setar `campaign.status='failed'`; commit (Baixo)
-- [ ] **PERS-23 / CAMP-13** — `db_session.rollback()` no except antes do close em `campaign_scheduler.py:158` (Baixo)
-- [ ] **PERS-25 (RAIZ-11)** — Session por batch OU AsyncSession em `main.py:375-392` e `campaign_executor_service.py:191` (Alto)
-  _Bloqueia decisão: DECISAO-05 (async completo vs mitigação por batch)_
-- [ ] **GHL-04** — `asyncio.Lock` no `TokenBucket` em `ghl_conversations_service.py:25-77` (Baixo)
-- [ ] **CAMP-06** — `with_for_update()` no check de pausa dentro do loop em `campaign_executor_service.py:99` (Baixo)
-- [ ] **CAMP-07** — `.with_for_update()` na query do resume em `api/campaign_management.py:185` (Baixo)
-- [ ] **GHL-07** — Tratar duplicata do GHL API com try/catch + retry do search em `ghl_contacts_service.py:260-275` (Médio)
-- [ ] **GHL-09** — `UNIQUE` constraint no `webhook_id` e catch `IntegrityError` em `ghl_webhook_handler.py:87-121` (Médio)
-- [ ] **CAMP-11** — Separar rollback de status vs rollback de mensagens em `campaign_executor_service.py:77,138,203` (Médio)
-- [ ] **CAMP-14** — Acumular mudanças em `_load_pending_campaigns` e fazer commit único em `campaign_scheduler.py:195-196` (Baixo)
+- [x] **PERS-20** — Adicionar `pool_timeout=30` ao `create_engine()` em `database.py:8-15` (Baixo)
+- [x] **PERS-22** — Rollback no except do background task de `main.py:302-305`; setar `campaign.status='failed'`; commit (Baixo)
+- [x] **PERS-23 / CAMP-13** — `db_session.rollback()` no except antes do close em `campaign_scheduler.py:158` (Baixo)
+- [ ] **PERS-25 (RAIZ-11)** — AsyncSession completo + asyncpg em `main.py` e `campaign_executor_service.py` (Alto)
+  _DECISAO-05 resolvida: Opção A — migração completa AsyncSession. Planejado em PR separado._
+- [x] **GHL-04** — `asyncio.Lock` no `TokenBucket` em `ghl_conversations_service.py:25-77`; `consume()` agora async (Baixo)
+- [x] **CAMP-06** — `with_for_update()` no check de pausa dentro do loop em `campaign_executor_service.py:99` (Baixo)
+- [x] **CAMP-07** — `.with_for_update()` na query do resume em `api/campaign_management.py:185` (Baixo)
+- [x] **GHL-07** — Tratar duplicata do GHL API com try/catch + retry do search em `ghl_contacts_service.py:260-275` (Médio)
+- [x] **GHL-09** — `webhook_id` já é PK (UNIQUE implícito); catch `IntegrityError` adicionado em `ghl_webhook_handler.py:106-115` (Médio)
+- [x] **CAMP-11** — Separar rollback de status vs rollback de mensagens em `campaign_executor_service.py:201-212`; mensagens `pending` marcadas como `failed` (Médio)
+- [x] **CAMP-14** — Commit único no final do loop em `_load_pending_campaigns` em `campaign_scheduler.py:195-196` (Baixo)
 
 ### EPIC-06 — Validadores de schedule (críticos de Fase 0)
-**Dependências:** EPIC-01, EPIC-02 • **Itens:** 2 (dos 12 totais; 10 vão para Fase 1) • **Concluídos:** 0 • **Status:** Bloqueado por EPIC-01 + EPIC-02
+**Dependências:** EPIC-01, EPIC-02 • **Itens:** 2 (dos 12 totais; 10 vão para Fase 1) • **Concluídos:** 2 • **Status:** ✅ Concluído (2026-04-11)
 
-- [ ] **CAMP-02** — `@field_validator` rejeitando `scheduled_time` no passado em `schemas/campaign.py:31` (Baixo)
-- [ ] **CAMP-03** — `@model_validator` exigindo `scheduled_time` quando `schedule_type='scheduled'` em `schemas/campaign.py:24-31` (Baixo)
+- [x] **CAMP-02** — `@field_validator` rejeitando `scheduled_time` no passado em `schemas/campaign.py` (Baixo)
+- [x] **CAMP-03** — `@model_validator` exigindo `scheduled_time` quando `schedule_type='scheduled'` em `schemas/campaign.py` (Baixo)
 
 ### EPIC-11 — Analytics (críticos de Fase 0)
 **Dependências:** EPIC-10 (idealmente) • **Itens:** 3 (dos 20 totais; 17 vão para Fase 2) • **Concluídos:** 0 • **Status:** Parcial (ANA-01 com hack)
