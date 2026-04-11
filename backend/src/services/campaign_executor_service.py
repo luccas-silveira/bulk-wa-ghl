@@ -6,7 +6,7 @@ import asyncio
 import os
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from src.models.campaign import Campaign
@@ -36,6 +36,9 @@ class CampaignExecutorService:
         'medium': 240.0, # 1 contact every 4 minutes
         'fast': 60.0     # 1 contact every 1 minute
     }
+
+    # Batch commit size: commit to DB every N messages to reduce pool contention
+    BATCH_COMMIT_SIZE = 10
 
     def __init__(self, db: Session):
         """
@@ -91,12 +94,15 @@ class CampaignExecutorService:
         successful_sends = 0
         failed_sends = 0
         user_index = 0  # Track current user in round-robin
+        _pending_commits = 0  # batch commit counter
 
         try:
             # Send messages to each contact
             for idx, contact in enumerate(contacts, 1):
-                # Check if campaign has been paused
-                self.db.refresh(campaign)
+                # Check if campaign has been paused (with lock to avoid stale read)
+                campaign = self.db.query(Campaign).filter(
+                    Campaign.id == campaign_id
+                ).with_for_update().first()
                 if campaign.status == 'paused':
                     logger.info(f"Campaign {campaign_id} paused, stopping execution")
                     break
@@ -126,16 +132,15 @@ class CampaignExecutorService:
                         message_text = msg_template.get('text', '')
                         media_url = msg_template.get('media_url')
 
-                        # Create message record
+                        # Create message record (do NOT commit yet — batch below)
                         message = Message(
                             campaign_id=campaign_id,
                             recipient_phone=phone_number,
                             content=message_text,
-                            media_url=media_url,  # Save media URL
+                            media_url=media_url,
                             status='pending'
                         )
                         self.db.add(message)
-                        self.db.commit()
 
                         try:
                             # Send via GHL using contact_id with attachments
@@ -143,12 +148,12 @@ class CampaignExecutorService:
                                 location_id=campaign.ghl_location_id,
                                 contact_id=contact_id,
                                 message_text=message_text,
-                                media_url=media_url  # Send as attachment
+                                media_url=media_url
                             )
 
                             # Update message with success
                             message.status = 'sent'
-                            message.sent_at = datetime.utcnow()
+                            message.sent_at = datetime.now(timezone.utc)
                             message.ghl_message_id = result.get('messageId')
                             message.ghl_conversation_id = result.get('conversationId')
                             message.ghl_status = result.get('status')
@@ -165,7 +170,10 @@ class CampaignExecutorService:
                             logger.error(f"✗ Failed to send to {phone_number}: {str(e)}")
 
                         finally:
-                            self.db.commit()
+                            _pending_commits += 1
+                            if _pending_commits >= self.BATCH_COMMIT_SIZE:
+                                self.db.commit()
+                                _pending_commits = 0
 
                 except Exception as e:
                     # Failed to get/create contact - record the failure
@@ -181,7 +189,10 @@ class CampaignExecutorService:
                             error_message=f"Contact preparation failed: {str(e)}"
                         )
                         self.db.add(failed_message)
-                    self.db.commit()
+                    _pending_commits += len(messages_template)
+                    if _pending_commits >= self.BATCH_COMMIT_SIZE:
+                        self.db.commit()
+                        _pending_commits = 0
 
                 # Move to next user in round-robin sequence
                 user_index += 1
@@ -189,6 +200,11 @@ class CampaignExecutorService:
                 # Wait before sending to next contact (rate limiting)
                 if idx < total_contacts:  # Don't wait after last contact
                     await asyncio.sleep(delay)
+
+            # Flush any remaining uncommitted messages
+            if _pending_commits > 0:
+                self.db.commit()
+                _pending_commits = 0
 
             # Mark campaign as completed (only if not paused)
             self.db.refresh(campaign)
