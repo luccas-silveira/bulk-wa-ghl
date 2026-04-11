@@ -223,6 +223,26 @@ async def create_campaign(
     messages = [m.model_dump() for m in campaign_data.messages]
     csv_data = [c.model_dump() for c in campaign_data.audience_criteria.csv_data]
 
+    # WAHA-12: validate ghl_location_id exists
+    from src.models.ghl_location import GHLLocation
+    location = db.query(GHLLocation).filter_by(ghl_location_id=ghl_location_id).first()
+    if not location:
+        return JSONResponse(
+            status_code=422,
+            content={"detail": f"GHL location '{ghl_location_id}' not found. Register the location first."}
+        )
+
+    # GHL-22: validate each ghl_user_id exists in ghl_users
+    from src.models.ghl_user import GHLUser
+    user_ids_to_validate = ghl_user_ids or ([ghl_user_id] if ghl_user_id else [])
+    for uid in user_ids_to_validate:
+        user = db.query(GHLUser).filter_by(ghl_user_id=uid).first()
+        if not user:
+            return JSONResponse(
+                status_code=422,
+                content={"detail": f"GHL user '{uid}' not found in ghl_users table."}
+            )
+
     logger.info(f"Campaign data: schedule_type={schedule_type}, contacts={len(csv_data)}, messages={len(messages)}")
 
     # Parse scheduled_time if provided
