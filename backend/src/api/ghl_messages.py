@@ -104,24 +104,29 @@ async def send_message(
             media_url=request.media_url
         )
 
-        # Create message record in database
-        message = Message(
-            campaign_id=request.campaign_id,
-            recipient_phone=request.contact_phone,
-            content=request.message_text,
-            status="sent",
-            ghl_conversation_id=result.get("conversationId"),
-            ghl_message_id=result.get("messageId"),
-            ghl_status="sent"
-        )
+        ghl_message_id = result.get("messageId")
+        db_message_id = None
 
-        db.add(message)
-        db.commit()
-        db.refresh(message)
+        # Only persist to messages table when a campaign_id is provided
+        # (campaign_id is NOT NULL in the schema; standalone messages are not persisted)
+        if request.campaign_id is not None:
+            message = Message(
+                campaign_id=request.campaign_id,
+                recipient_phone=request.contact_phone,
+                content=request.message_text,
+                status="sent",
+                ghl_conversation_id=result.get("conversationId"),
+                ghl_message_id=ghl_message_id,
+                ghl_status="sent"
+            )
+            db.add(message)
+            db.commit()
+            db.refresh(message)
+            db_message_id = message.id
 
         return {
-            "message_id": message.id,
-            "ghl_message_id": result.get("messageId"),
+            "message_id": db_message_id or ghl_message_id,
+            "ghl_message_id": ghl_message_id,
             "conversation_id": result.get("conversationId"),
             "contact_id": result.get("contactId"),
             "status": "sent",

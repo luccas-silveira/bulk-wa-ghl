@@ -192,7 +192,7 @@ class CampaignScheduler:
                         f"Campaign {campaign.id} scheduled for {campaign.scheduled_time} "
                         f"but has no persisted contact/message data. Marking as failed."
                     )
-                    campaign.status = 'failed'
+                    campaign.transition_to('failed')
                     db.commit()
 
         except Exception as e:

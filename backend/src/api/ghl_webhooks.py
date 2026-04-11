@@ -5,11 +5,28 @@ Handles incoming webhooks from GoHighLevel
 import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
-from typing import Dict
+from typing import Dict, Optional
 
 from src.database import get_db
 from src.services.ghl_webhook_handler import GHLWebhookHandler
+
+logger = logging.getLogger(__name__)
+
+
+class WebhookPayload(BaseModel):
+    """Schema Pydantic para validação de webhooks GHL (GHL-13)."""
+    type: str = Field(..., description="Webhook event type")
+    locationId: str = Field(..., description="GHL location ID")
+    messageId: Optional[str] = None
+    conversationId: Optional[str] = None
+    contactId: Optional[str] = None
+    contactPhone: Optional[str] = None
+    messageText: Optional[str] = None
+    timestamp: Optional[str] = None
+    errorCode: Optional[str] = None
+    errorMessage: Optional[str] = None
 
 router = APIRouter(prefix="/webhooks/ghl", tags=["GHL Webhooks"])
 logger = logging.getLogger(__name__)
@@ -34,6 +51,7 @@ async def process_webhook(
         Processing result
 
     Raises:
+        413: If payload exceeds 1MB limit
         401: If signature validation fails
         400: If webhook processing fails
     """
@@ -41,6 +59,13 @@ async def process_webhook(
 
     # Get raw payload for signature validation
     raw_payload = await request.body()
+
+    # GHL-21: reject oversized payloads before any processing
+    if len(raw_payload) > 1_000_000:
+        raise HTTPException(
+            status_code=413,
+            detail="Webhook payload exceeds 1MB limit"
+        )
 
     # Extract webhook_id from payload if possible (for logging before full parse)
     webhook_id_for_log = None
@@ -64,8 +89,10 @@ async def process_webhook(
     webhook_handler = GHLWebhookHandler(db)
 
     if not webhook_handler.validate_signature(raw_payload, x_ghl_signature):
+        # GHL-26: log warning with client IP for audit
         logger.warning(
-            f"Webhook signature validation failed for webhook_id={webhook_id_for_log} client_ip={client_ip}"
+            f"Webhook signature validation failed for webhook_id={webhook_id_for_log} from {client_ip} — possible replay/spoofing attempt",
+            extra={"client_ip": client_ip, "webhook_id": webhook_id_for_log}
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -79,6 +106,15 @@ async def process_webhook(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid JSON payload: {str(e)}"
+        )
+
+    # GHL-13: validate payload structure
+    try:
+        WebhookPayload.model_validate(payload)
+    except ValidationError:
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid webhook payload: missing required fields"
         )
 
     # Extract event type

@@ -5,13 +5,14 @@ Handles the execution of WhatsApp campaigns through GHL Conversations API
 import asyncio
 import os
 from typing import List, Dict, Optional
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 import logging
 
 from src.models.campaign import Campaign
 from src.models.message import Message
-from src.services.ghl_conversations_service import GHLConversationsService
+from src.services.ghl_conversations_service import GHLConversationsService, RateLimitExceeded
 from src.services.ghl_contacts_service import GHLContactsService
 from src.logging_config import reset_campaign_context, set_campaign_context
 
@@ -55,7 +56,8 @@ class CampaignExecutorService:
         self,
         campaign_id: int,
         contacts: List[Dict[str, str]],
-        messages_template: List[Dict[str, str]]
+        messages_template: List[Dict[str, str]],
+        start_user_index: int = 0,   # CAMP-04: resume from correct round-robin position
     ) -> Dict:
         """
         Execute a campaign by sending messages to all contacts
@@ -76,11 +78,17 @@ class CampaignExecutorService:
         logger.info(f"Starting execution of campaign {campaign_id}: {campaign.name}")
 
         # Update campaign status to executing
-        campaign.status = 'executing'
+        campaign.transition_to('executing')
         self.db.commit()
 
         # Get sending delay based on speed
-        delay = self.SPEED_DELAYS.get(campaign.sending_speed, 2.0)
+        delay = self.SPEED_DELAYS.get(campaign.sending_speed)
+        if delay is None:
+            logger.warning(
+                f"Unknown sending_speed '{campaign.sending_speed}' for campaign {campaign_id}, "
+                "defaulting to 2s delay"
+            )
+            delay = 2.0
 
         # Get list of users for round-robin distribution
         user_ids = campaign.get_user_ids_list()
@@ -93,7 +101,7 @@ class CampaignExecutorService:
         total_contacts = len(contacts)
         successful_sends = 0
         failed_sends = 0
-        user_index = 0  # Track current user in round-robin
+        user_index = start_user_index  # Resume from correct position in round-robin (CAMP-04)
         _pending_commits = 0  # batch commit counter
 
         try:
@@ -150,24 +158,48 @@ class CampaignExecutorService:
                                 message_text=message_text,
                                 media_url=media_url
                             )
-
                             # Update message with success
                             message.status = 'sent'
                             message.sent_at = datetime.now(timezone.utc)
                             message.ghl_message_id = result.get('messageId')
                             message.ghl_conversation_id = result.get('conversationId')
                             message.ghl_status = result.get('status')
-
                             successful_sends += 1
-                            logger.info(f"✓ Message sent successfully to {phone_number}")
+                            logger.info(f'✓ Message sent successfully to {phone_number}')
+
+                        except RateLimitExceeded:
+                            # CAMP-12: wait for rate limiter to refill and retry once
+                            wait_time = self.conversations_service.rate_limiter.wait_time()
+                            logger.warning(
+                                f'Rate limit hit sending to {phone_number}, waiting {max(wait_time, 1.0):.1f}s'
+                            )
+                            await asyncio.sleep(max(wait_time, 1.0))
+                            try:
+                                result = await self.conversations_service.send_message(
+                                    location_id=campaign.ghl_location_id,
+                                    contact_id=contact_id,
+                                    message_text=message_text,
+                                    media_url=media_url,
+                                )
+                                message.status = 'sent'
+                                message.sent_at = datetime.now(timezone.utc)
+                                message.ghl_message_id = result.get('messageId')
+                                message.ghl_conversation_id = result.get('conversationId')
+                                message.ghl_status = result.get('status')
+                                successful_sends += 1
+                                logger.info(f'✓ Message sent on retry to {phone_number}')
+                            except Exception as retry_err:
+                                message.status = 'failed'
+                                message.error_message = f'Rate limit retry failed: {retry_err}'
+                                failed_sends += 1
+                                logger.error(f'✗ Retry also failed for {phone_number}: {retry_err}')
 
                         except Exception as e:
                             # Update message with error
                             message.status = 'failed'
                             message.error_message = str(e)
-
                             failed_sends += 1
-                            logger.error(f"✗ Failed to send to {phone_number}: {str(e)}")
+                            logger.error(f'✗ Failed to send to {phone_number}: {str(e)}')
 
                         finally:
                             _pending_commits += 1
@@ -209,7 +241,7 @@ class CampaignExecutorService:
             # Mark campaign as completed (only if not paused)
             self.db.refresh(campaign)
             if campaign.status != 'paused':
-                campaign.status = 'completed'
+                campaign.transition_to('completed')
                 logger.info(f"Campaign {campaign_id} completed successfully")
             else:
                 logger.info(f"Campaign {campaign_id} execution stopped (paused)")
@@ -219,7 +251,7 @@ class CampaignExecutorService:
             self.db.rollback()
             campaign = self.db.query(Campaign).filter(Campaign.id == campaign_id).first()
             if campaign:
-                campaign.status = 'failed'
+                campaign.transition_to('failed')
             logger.error(f"Campaign {campaign_id} failed: {str(e)}")
             raise
 
@@ -250,21 +282,19 @@ class CampaignExecutorService:
         if not campaign:
             raise ValueError(f"Campaign {campaign_id} not found")
 
-        # Get message statistics
-        messages = self.db.query(Message).filter(Message.campaign_id == campaign_id).all()
+        agg_rows = (
+            self.db.query(Message.status, func.count(Message.id).label("cnt"))
+            .filter(Message.campaign_id == campaign_id)
+            .group_by(Message.status)
+            .all()
+        )
 
-        status_counts = {
-            'pending': 0,
-            'sent': 0,
-            'delivered': 0,
-            'read': 0,
-            'failed': 0
-        }
-
-        for msg in messages:
-            status = msg.status
+        status_counts = {'pending': 0, 'sent': 0, 'delivered': 0, 'read': 0, 'failed': 0}
+        total = 0
+        for status, cnt in agg_rows:
             if status in status_counts:
-                status_counts[status] += 1
+                status_counts[status] = cnt
+            total += cnt
 
         return {
             'campaign_id': campaign_id,
@@ -273,10 +303,7 @@ class CampaignExecutorService:
             'ghl_location_id': campaign.ghl_location_id,
             'sending_speed': campaign.sending_speed,
             'created_at': campaign.created_at.isoformat() if campaign.created_at else None,
-            'messages': {
-                'total': len(messages),
-                'by_status': status_counts
-            }
+            'messages': {'total': total, 'by_status': status_counts},
         }
 
     async def get_campaign_messages(
@@ -313,60 +340,76 @@ class CampaignExecutorService:
         Uses persisted contacts_data and messages_template to re-execute
         only the contacts that haven't been sent to yet.
 
-        Args:
-            campaign_id: Campaign database ID
-
-        Returns:
-            Dictionary with execution summary
+        Returns a consistent dict with keys:
+            campaign_id, status, resumed_contacts, successful_sends, failed_sends,
+            message (optional, early-exit paths only)
         """
         campaign = self.db.query(Campaign).filter(Campaign.id == campaign_id).with_for_update().first()
         if not campaign:
-            raise ValueError(f"Campaign {campaign_id} not found")
+            raise ValueError(f'Campaign {campaign_id} not found')
 
-        # Check if we have persisted data to resume from
+        # Early-exit: no persisted data
         if not campaign.contacts_data or not campaign.messages_template:
-            logger.warning(f"Campaign {campaign_id} has no persisted data, marking as completed")
-            campaign.status = 'completed'
+            logger.warning(f'Campaign {campaign_id} has no persisted data, marking as completed')
+            campaign.transition_to('completed')
             self.db.commit()
             return {
                 'campaign_id': campaign_id,
                 'status': 'completed',
-                'message': 'No persisted data available for resume'
+                'resumed_contacts': 0,
+                'successful_sends': 0,
+                'failed_sends': 0,
+                'message': 'No persisted data available for resume',
             }
 
         # Find phones that already received messages
         sent_phones = set()
-        existing_messages = self.db.query(Message.recipient_phone).filter(
-            Message.campaign_id == campaign_id,
-            Message.status.in_(['sent', 'delivered', 'read'])
-        ).all()
+        existing_messages = (
+            self.db.query(Message.recipient_phone)
+            .filter(Message.campaign_id == campaign_id)
+            .filter(Message.status.in_(['sent', 'delivered', 'read']))
+            .all()
+        )
         for (phone,) in existing_messages:
             sent_phones.add(phone)
 
         # Filter contacts to only those not yet sent
         remaining_contacts = [
-            c for c in campaign.contacts_data
-            if c.get('phone_number') not in sent_phones
+            c for c in campaign.contacts_data if c.get('phone_number') not in sent_phones
         ]
 
+        # Early-exit: all contacts already sent
         if not remaining_contacts:
-            logger.info(f"Campaign {campaign_id}: all contacts already sent, marking completed")
-            campaign.status = 'completed'
+            logger.info(f'Campaign {campaign_id}: all contacts already sent, marking completed')
+            campaign.transition_to('completed')
             self.db.commit()
             return {
                 'campaign_id': campaign_id,
                 'status': 'completed',
-                'remaining_contacts': 0,
-                'message': 'All contacts already sent'
+                'resumed_contacts': 0,
+                'successful_sends': 0,
+                'failed_sends': 0,
+                'message': 'All contacts already sent',
             }
 
-        logger.info(f"Resuming campaign {campaign_id}: {len(remaining_contacts)} contacts remaining")
-
-        # Re-execute with remaining contacts
-        result = await self.execute_campaign(
-            campaign_id=campaign_id,
-            contacts=remaining_contacts,
-            messages_template=campaign.messages_template
+        start_user_index = len(sent_phones)  # CAMP-04: continue round-robin from correct position
+        logger.info(
+            f'Resuming campaign {campaign_id}: {len(remaining_contacts)} contacts remaining, '
+            f'start_user_index={start_user_index}'
         )
 
-        return result
+        result = await self.execute_campaign(
+            campaign_id,
+            remaining_contacts,
+            campaign.messages_template,
+            start_user_index,
+        )
+
+        # CAMP-09: normalize schema
+        return {
+            'campaign_id': campaign_id,
+            'status': result['status'],
+            'resumed_contacts': result['total_contacts'],
+            'successful_sends': result['successful_sends'],
+            'failed_sends': result['failed_sends'],
+        }

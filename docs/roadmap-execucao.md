@@ -175,27 +175,27 @@ Critérios de saída (plano mestre, linha 590):
   _Bloqueia decisão: DECISAO-03_
 
 ### EPIC-07 — Execução de Campanha (correções funcionais)
-**Dependências:** EPIC-02, EPIC-05, EPIC-06 • **Itens:** 11 • **Concluídos:** 0
+**Dependências:** EPIC-02, EPIC-05, EPIC-06 • **Itens:** 11 • **Concluídos:** 11 • **Status:** ✅ Concluído (2026-04-11)
 
-- [ ] **CAMP-04** — Calcular `user_index` inicial no resume: `sent_count % len(user_ids)` em `campaign_executor_service.py:294-356` (Baixo)
-- [ ] **CAMP-12** — Catch `RateLimitExceeded` separado; aguardar antes de retry em `campaign_executor_service.py:159` (Baixo)
-- [ ] **GHL-06** — Trocar `type: "SMS"` por `type: "WhatsApp"` em `ghl_conversations_service.py:167` (Baixo)
-- [ ] **GHL-05** — Buscar/criar contato para obter `contact_id` antes de `send_message()` em `api/ghl_messages.py:102` (Baixo)
-- [ ] **GHL-08** — Catch 401 separado que força refresh antes do retry em `ghl_conversations_service.py:198-205` (Baixo)
-- [ ] **GHL-15** — Marcar `is_active=False` em users da location não retornados pela API em `ghl_users_service.py:79-124` (Médio)
-- [ ] **GHL-22** — Validar `assigned_to` contra tabela `ghl_users` em `ghl_contacts_service.py:112-162` (Baixo)
-- [ ] **WAHA-12** — Validar `ghl_location_id` existe no banco antes de criar campanha em `main.py:291-420` (Baixo)
-- [ ] **CAMP-08** — Usar agregação SQL em `get_campaign_status` em vez de `.all()` + count Python (Baixo)
-- [ ] **CAMP-09** — Normalizar schema de resposta do resume em `campaign_executor_service.py:340` (Baixo)
-- [ ] **CAMP-10** — Logar warning se `sending_speed` inválida; validar na criação em `campaign_executor_service.py:80` (Baixo)
+- [x] **CAMP-04** — Calcular `user_index` inicial no resume: `sent_count % len(user_ids)` em `campaign_executor_service.py:294-356` (Baixo)
+- [x] **CAMP-12** — Catch `RateLimitExceeded` separado; aguardar antes de retry em `campaign_executor_service.py:159` (Baixo)
+- [x] **GHL-06** — Trocar `type: "SMS"` por `type: "WhatsApp"` em `ghl_conversations_service.py:167` (Baixo)
+- [x] **GHL-05** — Buscar/criar contato para obter `contact_id` antes de `send_message()` em `api/ghl_messages.py:102` (Baixo)
+- [x] **GHL-08** — Catch 401 separado que força refresh antes do retry em `ghl_conversations_service.py:198-205` (Baixo)
+- [x] **GHL-15** — Marcar `is_active=False` em users da location não retornados pela API em `ghl_users_service.py:79-124` (Médio)
+- [x] **GHL-22** — Validar `assigned_to` contra tabela `ghl_users` em `ghl_contacts_service.py:112-162` (Baixo)
+- [x] **WAHA-12** — Validar `ghl_location_id` existe no banco antes de criar campanha em `main.py:291-420` (Baixo)
+- [x] **CAMP-08** — Usar agregação SQL em `get_campaign_status` em vez de `.all()` + count Python (Baixo)
+- [x] **CAMP-09** — Normalizar schema de resposta do resume em `campaign_executor_service.py:340` (Baixo)
+- [x] **CAMP-10** — Logar warning se `sending_speed` inválida; validar na criação em `campaign_executor_service.py:80` (Baixo)
 
 ### EPIC-08 — Webhooks GHL: segurança e idempotência
-**Dependências:** EPIC-03, EPIC-06 • **Itens:** 4 • **Concluídos:** 0
+**Dependências:** EPIC-03, EPIC-06 • **Itens:** 4 • **Concluídos:** 4 • **Status:** ✅ Concluído (2026-04-11)
 
-- [ ] **GHL-13** — Criar schema Pydantic `WebhookPayload` com campos obrigatórios em `api/ghl_webhooks.py:55-70` (Médio)
-- [ ] **GHL-10** — Job periódico deletando `processed_at < now() - 30 dias` em `models/processed_webhook.py:20-34` (Baixo)
-- [ ] **GHL-21** — Checar `len(body) > 1MB` antes de processar em `ghl_webhooks.py` (Baixo)
-- [ ] **GHL-26** — `logger.warning` em falha de validação de assinatura em `ghl_webhook_handler.py:45-67` (Baixo)
+- [x] **GHL-13** — Criar schema Pydantic `WebhookPayload` com campos obrigatórios em `api/ghl_webhooks.py:55-70` (Médio)
+- [x] **GHL-10** — Job periódico deletando `processed_at < now() - 30 dias` em `models/processed_webhook.py:20-34` (Baixo)
+- [x] **GHL-21** — Checar `len(body) > 1MB` antes de processar em `ghl_webhooks.py` (Baixo)
+- [x] **GHL-26** — `logger.warning` em falha de validação de assinatura em `ghl_webhook_handler.py:45-67` (Baixo)
 
 ### EPIC-09 — Normalização e Validação de Telefone (RAIZ-08)
 **Dependências:** EPIC-01 • **Itens:** 4 • **Concluídos:** 0

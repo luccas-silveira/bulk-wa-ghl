@@ -80,7 +80,7 @@ def sample_campaign(db_session, sample_ghl_locations):
     """Create a sample campaign for testing"""
     campaign = Campaign(
         name="Test Campaign",
-        status="active",
+        status="draft",
         ghl_location_id="loc_test123",
         ghl_location_name="Test Location 1"
     )
