@@ -254,12 +254,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
             order: index + 1,
           })),
         audience_criteria: {
-          filter_type: formData.audience_type,
-          csv_data: formData.audience_type === 'csv_upload' ? parsedContacts : undefined,
-          tag_filters: formData.audience_type === 'tag_based' ? {
-            logic: formData.tag_filters?.logic || 'AND',
-            tags: formData.tag_filters?.selected_tags || [],
-          } : undefined,
+          csv_data: parsedContacts,
         },
       };
 
