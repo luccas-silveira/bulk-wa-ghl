@@ -175,10 +175,11 @@ async def health_check(db: Session = Depends(get_db)):
             }
         )
 
+    import src.config as _config
     return {
         "status": "healthy",
         "database": db_status,
-        "ghl_enabled": GHL_ENABLED,
+        "ghl_enabled": _config.GHL_ENABLED,
         "service": "wpp-disp-backend",
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
