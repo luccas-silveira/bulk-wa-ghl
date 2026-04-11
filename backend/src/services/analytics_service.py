@@ -96,8 +96,9 @@ def get_delivery_metrics(
     failed = len([m for m in messages if m.status == 'failed'])
     read = len([m for m in messages if m.status == 'read'])
 
-    # Calculate total (sent + delivered + failed)
-    total = sent + delivered + failed
+    # Calculate total — include pending to avoid inflating rate during execution
+    pending = len([m for m in messages if m.status == 'pending'])
+    total = pending + sent + delivered + failed
 
     # Calculate rates
     if total > 0:

@@ -394,6 +394,42 @@ class TestGetDeliveryMetrics:
 
         assert result['delivered'] == 3
 
+    def test_pending_messages_included_in_denominator(self, db_session):
+        """ANA-03: pending messages dilute delivery rate — not counted as success"""
+        campaign = Campaign(
+            name="Test Campaign",
+            status='executing',
+            ghl_location_id="loc_123"
+        )
+        db_session.add(campaign)
+        db_session.commit()
+
+        now = datetime.now()
+
+        # 5 delivered, 5 still pending → delivery rate must be 50%, not 100%
+        for i in range(5):
+            db_session.add(Message(
+                campaign_id=campaign.id,
+                recipient_phone=f"+5511999{i:06d}",
+                content="Test message",
+                status='delivered',
+                sent_at=now - timedelta(days=1)
+            ))
+        for i in range(5):
+            db_session.add(Message(
+                campaign_id=campaign.id,
+                recipient_phone=f"+5511888{i:06d}",
+                content="Test message",
+                status='pending',
+                sent_at=None
+            ))
+        db_session.commit()
+
+        result = get_delivery_metrics(db_session)
+
+        assert result['delivered'] == 5
+        assert result['delivery_rate'] == 50.0  # 5 / (5 delivered + 5 pending) = 50%
+
 
 class TestGetRecentCampaigns:
     """Tests for get_recent_campaigns() function"""
