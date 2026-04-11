@@ -74,3 +74,22 @@ class CampaignCreateRequest(BaseModel):
     scheduled_time: Optional[str] = None
     messages: List[MessageTemplate] = Field(..., min_length=1)
     audience_criteria: AudienceCriteria = Field(default_factory=AudienceCriteria)
+
+    @field_validator('scheduled_time', mode='before')
+    @classmethod
+    def validate_scheduled_time(cls, v):
+        if v is None:
+            return v
+        try:
+            dt = datetime.fromisoformat(str(v).replace('Z', '+00:00'))
+        except (ValueError, TypeError):
+            raise ValueError('Invalid scheduled_time format. Use ISO 8601.')
+        if dt <= datetime.now(timezone.utc):
+            raise ValueError('scheduled_time must be in the future.')
+        return v
+
+    @model_validator(mode='after')
+    def validate_scheduled_requires_time(self):
+        if self.schedule_type == 'scheduled' and not self.scheduled_time:
+            raise ValueError('scheduled_time is required when schedule_type is scheduled.')
+        return self
