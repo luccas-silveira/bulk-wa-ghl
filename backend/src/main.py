@@ -15,6 +15,8 @@ import hmac
 import os
 import time
 import uuid
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 # Import database
 from src.database import get_db, SessionLocal, engine
@@ -50,6 +52,8 @@ from src.api import campaign_management
 
 setup_logging()
 
+from src.limiter import limiter  # noqa: E402 — must be after setup_logging()
+
 # Initialize Campaign Scheduler (before lifespan to ensure it's available)
 scheduler = CampaignScheduler()
 
@@ -77,6 +81,9 @@ app = FastAPI(
 )
 
 logger = logging.getLogger(__name__)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.exception_handler(Exception)

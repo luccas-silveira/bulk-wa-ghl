@@ -2,19 +2,22 @@
 Campaign Management API Endpoints
 Provides campaign listing, details, logs, statistics, pause/resume, and deletion
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, Response, status as http_status
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, Request, Response, status as http_status
 from sqlalchemy.orm import Session
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 from src.database import get_db
+from src.limiter import limiter
 from src.services.campaign_management_service import CampaignManagementService
 
 router = APIRouter(prefix="/api/v1/campaigns", tags=["Campaign Management"])
 
 
 @router.get("", response_model=dict)
+@limiter.limit("60/minute")
 async def list_campaigns(
+    request: Request,
     status: Optional[str] = Query(None, description="Filter by campaign status"),
     ghl_user_id: Optional[str] = Query(None, description="Filter by GHL user ID"),
     ghl_location_id: Optional[str] = Query(None, description="Filter by GHL location ID"),
@@ -74,7 +77,9 @@ async def list_campaigns(
 
 
 @router.get("/{campaign_id}/details", response_model=dict)
+@limiter.limit("60/minute")
 async def get_campaign_details(
+    request: Request,
     campaign_id: int = Path(..., description="Campaign ID"),
     db: Session = Depends(get_db)
 ):
@@ -106,7 +111,9 @@ async def get_campaign_details(
 
 
 @router.patch("/{campaign_id}/pause", response_model=dict)
+@limiter.limit("60/minute")
 async def pause_campaign(
+    request: Request,
     campaign_id: int = Path(..., description="Campaign ID"),
     db: Session = Depends(get_db)
 ):
@@ -163,7 +170,9 @@ async def pause_campaign(
 
 
 @router.patch("/{campaign_id}/resume", response_model=dict)
+@limiter.limit("60/minute")
 async def resume_campaign(
+    request: Request,
     campaign_id: int = Path(..., description="Campaign ID"),
     db: Session = Depends(get_db)
 ):
@@ -223,7 +232,9 @@ async def resume_campaign(
 
 
 @router.get("/{campaign_id}/logs", response_model=dict)
+@limiter.limit("60/minute")
 async def get_campaign_logs(
+    request: Request,
     campaign_id: int = Path(..., description="Campaign ID"),
     status: Optional[str] = Query(None, description="Filter by message status"),
     recipient: Optional[str] = Query(None, description="Filter by recipient phone (partial match)"),
@@ -279,7 +290,9 @@ async def get_campaign_logs(
 
 
 @router.delete("/{campaign_id}", status_code=http_status.HTTP_204_NO_CONTENT)
+@limiter.limit("60/minute")
 async def delete_campaign(
+    request: Request,
     campaign_id: int = Path(..., description="Campaign ID"),
     db: Session = Depends(get_db)
 ):
@@ -320,7 +333,9 @@ async def delete_campaign(
 
 
 @router.get("/stats", response_model=dict)
+@limiter.limit("60/minute")
 async def get_campaign_statistics(
+    request: Request,
     ghl_user_id: Optional[str] = Query(None, description="Filter by GHL user ID"),
     ghl_location_id: Optional[str] = Query(None, description="Filter by GHL location ID"),
     from_date: Optional[datetime] = Query(None, description="Filter campaigns created after this date"),

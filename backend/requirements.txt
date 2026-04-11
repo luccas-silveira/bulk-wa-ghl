@@ -5,6 +5,7 @@ pydantic==2.5.0
 gunicorn==21.2.0
 apscheduler==3.10.4
 prometheus-client==0.20.0
+slowapi==0.1.9
 
 # GHL Integration dependencies
 httpx==0.24.1
