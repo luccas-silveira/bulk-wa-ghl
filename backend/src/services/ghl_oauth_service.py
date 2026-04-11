@@ -126,7 +126,12 @@ class GHLOAuthService:
 
             await self._store_tokens(location_id, token_data)
 
-            return token_data
+            return {
+                "location_id": location_id,
+                "expires_in": token_data.get("expires_in"),
+                "scope": token_data.get("scope", ""),
+                "company_id": token_data.get("companyId", "unknown"),
+            }
 
         except httpx.HTTPStatusError as e:
             logger.error(

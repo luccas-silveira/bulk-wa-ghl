@@ -68,22 +68,19 @@ async def oauth_callback(
     try:
         token_data = await oauth_service.exchange_code_for_token(code)
 
-        location_id = token_data.get("locationId")
+        location_id = token_data["location_id"]
 
-        # Try to get location details from GHL or create placeholder
         location = db.query(GHLLocation).filter(
             GHLLocation.ghl_location_id == location_id
         ).first()
 
         if not location:
-            # Create placeholder location record
-            # In production, you would fetch location details from GHL API
             location = GHLLocation(
                 ghl_location_id=location_id,
                 name=f"Location {location_id}",
-                company_id=token_data.get("companyId", "unknown"),
+                company_id=token_data["company_id"],
                 is_active=True,
-                has_whatsapp=True,  # Assume true since user went through OAuth
+                has_whatsapp=True,
                 whatsapp_status="pending"
             )
             db.add(location)
@@ -95,8 +92,8 @@ async def oauth_callback(
             "message": "OAuth authorization successful",
             "location_id": location_id,
             "location_name": location.name,
-            "expires_in": token_data.get("expires_in"),
-            "scope": token_data.get("scope")
+            "expires_in": token_data["expires_in"],
+            "scope": token_data["scope"],
         }
 
     except ValueError as e:
