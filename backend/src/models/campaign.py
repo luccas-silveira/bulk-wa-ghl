@@ -48,7 +48,7 @@ class Campaign(Base):
     ghl_location_id = Column(
         String(50),
         ForeignKey('ghl_locations.ghl_location_id', ondelete='RESTRICT'),
-        nullable=True,  # Nullable during migration phase
+        nullable=False,
         index=True
     )
     ghl_location_name = Column(String(255), nullable=True)

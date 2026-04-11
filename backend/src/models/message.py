@@ -35,8 +35,8 @@ class Message(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     campaign_id = Column(
         Integer,
-        ForeignKey('campaigns.id', ondelete='CASCADE'),
-        nullable=True,  # Nullable to support standalone messages
+        ForeignKey('campaigns.id', ondelete='RESTRICT'),
+        nullable=False,
         index=True
     )
     recipient_phone = Column(String(20), nullable=False, index=True)
