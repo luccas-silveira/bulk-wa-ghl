@@ -226,18 +226,28 @@ class GHLOAuthService:
         """
         access_token = token_data.get("access_token")
         refresh_token = token_data.get("refresh_token")
-        expires_in = token_data.get("expires_in", 3600)  # Default 1 hour
-        scope = token_data.get("scope", "")
+        expires_in = token_data.get("expires_in")
 
-        if not access_token or not refresh_token:
-            raise ValueError("Missing access_token or refresh_token in response")
+        # GHL-17: validate required fields
+        missing = [f for f, v in [
+            ("access_token", access_token),
+            ("refresh_token", refresh_token),
+            ("expires_in", expires_in),
+            ("locationId", token_data.get("locationId")),
+        ] if not v]
+        if missing:
+            raise ValueError(f"Missing required fields in token response: {missing}")
 
         # Encrypt tokens
         access_token_encrypted = self.encryption_service.encrypt(access_token)
         refresh_token_encrypted = self.encryption_service.encrypt(refresh_token)
 
         # Calculate expiration time
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=int(expires_in))
+
+        # GHL-02: strip tokens from raw_response before storing
+        safe_response = {k: v for k, v in token_data.items()
+                         if k not in ("access_token", "refresh_token")}
 
         # Check if token record exists
         token_record = self.db.query(GHLOAuthToken).filter(
@@ -249,8 +259,8 @@ class GHLOAuthService:
             token_record.access_token_encrypted = access_token_encrypted
             token_record.refresh_token_encrypted = refresh_token_encrypted
             token_record.expires_at = expires_at
-            token_record.scope = scope
-            token_record.raw_response = token_data
+            token_record.scope = token_data.get("scope", "")
+            token_record.raw_response = safe_response
         else:
             # Create new record
             token_record = GHLOAuthToken(
@@ -258,8 +268,8 @@ class GHLOAuthService:
                 access_token_encrypted=access_token_encrypted,
                 refresh_token_encrypted=refresh_token_encrypted,
                 expires_at=expires_at,
-                scope=scope,
-                raw_response=token_data
+                scope=token_data.get("scope", ""),
+                raw_response=safe_response
             )
             self.db.add(token_record)
 
