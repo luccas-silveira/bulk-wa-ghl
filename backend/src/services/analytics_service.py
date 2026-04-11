@@ -2,7 +2,7 @@
 Analytics Service
 Provides dashboard analytics and metrics for campaigns and messages
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from sqlalchemy.orm import Session
 
@@ -27,7 +27,7 @@ def get_campaign_metrics(
         Dictionary with campaign counts by status
     """
     # Calculate date threshold
-    date_threshold = datetime.now() - timedelta(days=days)
+    date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
     # Base query with time filter
     query = db.query(Campaign).filter(Campaign.created_at >= date_threshold)
@@ -76,7 +76,7 @@ def get_delivery_metrics(
         Dictionary with delivery metrics and rates
     """
     # Calculate date threshold
-    date_threshold = datetime.now() - timedelta(days=days)
+    date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
     # Base query: messages in time range (include both sent and failed)
     query = db.query(Message).filter(Message.created_at >= date_threshold)
@@ -91,10 +91,10 @@ def get_delivery_metrics(
     messages = query.all()
 
     # Count by status
-    sent = len([m for m in messages if m.status == 'sent' and m.ghl_status not in ['delivered', 'read']])
-    delivered = len([m for m in messages if m.ghl_status in ['delivered', 'read']])
+    sent = len([m for m in messages if m.status == 'sent'])
+    delivered = len([m for m in messages if m.status in ('delivered', 'read')])
     failed = len([m for m in messages if m.status == 'failed'])
-    read = len([m for m in messages if m.ghl_status == 'read'])
+    read = len([m for m in messages if m.status == 'read'])
 
     # Calculate total (sent + delivered + failed)
     total = sent + delivered + failed
@@ -137,7 +137,7 @@ def get_recent_campaigns(
     from sqlalchemy import desc
 
     # Calculate date threshold
-    date_threshold = datetime.now() - timedelta(days=days)
+    date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
     # Base query with filters
     query = db.query(Campaign).filter(Campaign.created_at >= date_threshold)
@@ -159,7 +159,7 @@ def get_recent_campaigns(
         ).all()
 
         total_messages = len(messages)
-        delivered = len([m for m in messages if m.ghl_status in ['delivered', 'read']])
+        delivered = len([m for m in messages if m.status in ('delivered', 'read')])
 
         # Calculate delivery rate
         delivery_rate = round(delivered / total_messages * 100, 1) if total_messages > 0 else 0.0
@@ -195,7 +195,7 @@ def get_top_campaigns(
         List of campaign dictionaries ranked by performance
     """
     # Calculate date threshold
-    date_threshold = datetime.now() - timedelta(days=days)
+    date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
     # Base query with filters
     query = db.query(Campaign).filter(Campaign.created_at >= date_threshold)
@@ -219,8 +219,8 @@ def get_top_campaigns(
         if total == 0:
             continue  # Skip campaigns with no messages
 
-        delivered = len([m for m in messages if m.ghl_status in ['delivered', 'read']])
-        read = len([m for m in messages if m.ghl_status == 'read'])
+        delivered = len([m for m in messages if m.status in ('delivered', 'read')])
+        read = len([m for m in messages if m.status == 'read'])
 
         delivery_rate = round(delivered / total * 100, 1)
         read_rate = round(read / total * 100, 1)

@@ -185,8 +185,7 @@ class TestGetDeliveryMetrics:
                 campaign_id=campaign.id,
                 recipient_phone=f"+5511999{i:06d}",
                 content="Test message",
-                status='sent',
-                ghl_status='delivered',
+                status='delivered',
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
@@ -226,8 +225,7 @@ class TestGetDeliveryMetrics:
                 campaign_id=campaign.id,
                 recipient_phone=f"+5511999{i:06d}",
                 content="Test message",
-                status='sent',
-                ghl_status='read',
+                status='read',
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
@@ -237,8 +235,7 @@ class TestGetDeliveryMetrics:
                 campaign_id=campaign.id,
                 recipient_phone=f"+5511888{i:06d}",
                 content="Test message",
-                status='sent',
-                ghl_status='delivered',
+                status='delivered',
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
@@ -278,8 +275,7 @@ class TestGetDeliveryMetrics:
                 campaign_id=campaign.id,
                 recipient_phone=f"+5511888{i:06d}",
                 content="Test message",
-                status='sent',
-                ghl_status='delivered',
+                status='delivered',
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
@@ -337,8 +333,7 @@ class TestGetDeliveryMetrics:
                 campaign_id=campaign1.id,
                 recipient_phone=f"+5511999{i:06d}",
                 content="Test message",
-                status='sent',
-                ghl_status='delivered',
+                status='delivered',
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
@@ -349,8 +344,7 @@ class TestGetDeliveryMetrics:
                 campaign_id=campaign2.id,
                 recipient_phone=f"+5511888{i:06d}",
                 content="Test message",
-                status='sent',
-                ghl_status='delivered',
+                status='delivered',
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
@@ -378,20 +372,19 @@ class TestGetDeliveryMetrics:
                 campaign_id=campaign.id,
                 recipient_phone=f"+5511999{i:06d}",
                 content="Test message",
-                status='sent',
-                ghl_status='delivered',
+                status='delivered',
                 sent_at=now - timedelta(days=10)
             )
             db_session.add(message)
 
-        # Old messages (outside 30 days)
+        # Old messages (outside 30 days — set created_at explicitly so the service time filter excludes them)
         for i in range(2):
             message = Message(
                 campaign_id=campaign.id,
                 recipient_phone=f"+5511888{i:06d}",
                 content="Test message",
-                status='sent',
-                ghl_status='delivered',
+                status='delivered',
+                created_at=now - timedelta(days=40),
                 sent_at=now - timedelta(days=40)
             )
             db_session.add(message)
@@ -508,8 +501,7 @@ class TestGetRecentCampaigns:
                 campaign_id=campaign.id,
                 recipient_phone=f"+5511999{i:06d}",
                 content="Test message",
-                status='sent',
-                ghl_status='delivered',
+                status='delivered',
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
@@ -582,8 +574,7 @@ class TestGetTopCampaigns:
                     campaign_id=campaign.id,
                     recipient_phone=f"+5511{campaign.id:03d}{i:06d}",
                     content="Test message",
-                    status='sent',
-                    ghl_status='read',
+                    status='read',
                     sent_at=now - timedelta(days=5)
                 )
                 db_session.add(message)
@@ -593,8 +584,7 @@ class TestGetTopCampaigns:
                     campaign_id=campaign.id,
                     recipient_phone=f"+5511{campaign.id:03d}{i+read_count:06d}",
                     content="Test message",
-                    status='sent',
-                    ghl_status='delivered',
+                    status='delivered',
                     sent_at=now - timedelta(days=5)
                 )
                 db_session.add(message)
@@ -630,8 +620,7 @@ class TestGetTopCampaigns:
                 campaign_id=campaign1.id,
                 recipient_phone=f"+551199900{i:04d}",
                 content="Test message",
-                status='sent',
-                ghl_status='read',
+                status='read',
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
@@ -641,8 +630,7 @@ class TestGetTopCampaigns:
                 campaign_id=campaign1.id,
                 recipient_phone=f"+551199901{i:04d}",
                 content="Test message",
-                status='sent',
-                ghl_status='delivered',
+                status='delivered',
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
@@ -672,8 +660,7 @@ class TestGetTopCampaigns:
                 campaign_id=campaign2.id,
                 recipient_phone=f"+551188800{i:04d}",
                 content="Test message",
-                status='sent',
-                ghl_status='read',
+                status='read',
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
@@ -683,8 +670,7 @@ class TestGetTopCampaigns:
                 campaign_id=campaign2.id,
                 recipient_phone=f"+551188801{i:04d}",
                 content="Test message",
-                status='sent',
-                ghl_status='delivered',
+                status='delivered',
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
@@ -731,8 +717,7 @@ class TestGetTopCampaigns:
                     campaign_id=campaign.id,
                     recipient_phone=f"+5511{i:03d}{j:06d}",
                     content="Test message",
-                    status='sent',
-                    ghl_status='delivered',
+                    status='delivered',
                     sent_at=now - timedelta(days=5)
                 )
                 db_session.add(message)
@@ -762,8 +747,7 @@ class TestGetTopCampaigns:
             campaign_id=campaign1.id,
             recipient_phone="+5511999000001",
             content="Test message",
-            status='sent',
-            ghl_status='delivered',
+            status='delivered',
             sent_at=now - timedelta(days=5)
         )
         db_session.add(message)
@@ -801,8 +785,7 @@ class TestGetTopCampaigns:
             campaign_id=campaign1.id,
             recipient_phone="+5511999000001",
             content="Test message",
-            status='sent',
-            ghl_status='delivered',
+            status='delivered',
             sent_at=now - timedelta(days=5)
         )
         db_session.add(message)
@@ -822,8 +805,7 @@ class TestGetTopCampaigns:
             campaign_id=campaign2.id,
             recipient_phone="+5511999000002",
             content="Test message",
-            status='sent',
-            ghl_status='delivered',
+            status='delivered',
             sent_at=now - timedelta(days=5)
         )
         db_session.add(message)
@@ -843,8 +825,7 @@ class TestGetTopCampaigns:
             campaign_id=campaign3.id,
             recipient_phone="+5511999000003",
             content="Test message",
-            status='sent',
-            ghl_status='delivered',
+            status='delivered',
             sent_at=now - timedelta(days=35)
         )
         db_session.add(message)
@@ -871,8 +852,7 @@ class TestGetTopCampaigns:
                 campaign_id=campaign.id,
                 recipient_phone=f"+5511999{i:06d}",
                 content="Test message",
-                status='sent',
-                ghl_status='read',
+                status='read',
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)

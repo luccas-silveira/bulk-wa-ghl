@@ -2,8 +2,7 @@
 Campaign Model
 Represents a WhatsApp message campaign
 """
-from sqlalchemy import Column, Integer, String, TIMESTAMP, ForeignKey, Index, Text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, Integer, String, TIMESTAMP, ForeignKey, Index, Text, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from src.database import Base
@@ -35,14 +34,14 @@ class Campaign(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=False)
     status = Column(String(50), nullable=False, default='draft', index=True)
-    created_at = Column(TIMESTAMP, server_default=func.now(), nullable=False)
-    updated_at = Column(TIMESTAMP, server_default=func.now(), onupdate=func.now(), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     sending_speed = Column(String(20), default='medium')
     schedule_type = Column(String(50), default='immediate')
-    scheduled_time = Column(TIMESTAMP, nullable=True)
+    scheduled_time = Column(TIMESTAMP(timezone=True), nullable=True)
 
     # Pause/resume functionality (Feature 004)
-    paused_at = Column(TIMESTAMP, nullable=True)  # When campaign was paused (NULL if not paused)
+    paused_at = Column(TIMESTAMP(timezone=True), nullable=True)  # When campaign was paused (NULL if not paused)
 
     # GHL integration fields (NEW)
     ghl_location_id = Column(
@@ -57,8 +56,8 @@ class Campaign(Base):
     ghl_user_ids = Column(Text, nullable=True)  # JSON array of user IDs for multi-user round-robin
 
     # Persisted campaign data for scheduled campaigns and resume support
-    contacts_data = Column(JSONB, nullable=True)  # CSV contact list for scheduled/resumable campaigns
-    messages_template = Column(JSONB, nullable=True)  # Message templates for scheduled/resumable campaigns
+    contacts_data = Column(JSON, nullable=True)  # CSV contact list for scheduled/resumable campaigns
+    messages_template = Column(JSON, nullable=True)  # Message templates for scheduled/resumable campaigns
 
     # Relationship to GHLLocation
     ghl_location = relationship("GHLLocation", backref="campaigns", foreign_keys=[ghl_location_id])
