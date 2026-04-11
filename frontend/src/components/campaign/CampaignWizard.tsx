@@ -7,6 +7,7 @@
 
 import React, { useState } from 'react';
 import Papa from 'papaparse';
+import { parsePhoneNumber, isValidPhoneNumber } from 'libphonenumber-js';
 import { CampaignFormData, CampaignCreateRequest, ContactCsvData, SendingSpeed, ScheduleType } from '../../types/api';
 import { useGHLUsers } from '../../hooks/useGHLUsers';
 
@@ -156,15 +157,20 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
         return;
       }
 
-      // Basic phone validation (should start with +)
-      const cleanPhone = String(phoneNumber).trim();
-      if (!cleanPhone.startsWith('+')) {
-        errors.push(`Linha ${index + 2}: Telefone deve começar com + (formato internacional): ${cleanPhone}`);
-        return;
+      // Normalize phone to E.164; keep original if unparseable (backend tolerates both)
+      const rawPhone = String(phoneNumber).trim();
+      let normalizedPhone = rawPhone;
+      try {
+        const parsed = parsePhoneNumber(rawPhone);
+        if (parsed && parsed.isValid()) {
+          normalizedPhone = parsed.format('E.164');
+        }
+      } catch {
+        // parsePhoneNumber throws for invalid input; keep rawPhone as-is
       }
 
       contacts.push({
-        phone_number: cleanPhone,
+        phone_number: normalizedPhone,
         name: name ? String(name).trim() : '',
         email: email ? String(email).trim() : undefined,
       });
