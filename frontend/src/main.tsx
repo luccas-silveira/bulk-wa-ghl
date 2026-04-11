@@ -49,7 +49,7 @@ const App: React.FC = () => {
 
   const handleCreateCampaign = async (campaignData: CampaignCreateRequest) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/campaigns`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/campaigns`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
