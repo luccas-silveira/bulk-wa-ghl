@@ -320,14 +320,14 @@ async def create_campaign(
             )
 
             # Update status to 'scheduled'
-            campaign.status = 'scheduled'
+            campaign.transition_to('scheduled')
             db.commit()
 
             logger.info(f"Campaign {campaign_id} scheduled successfully")
 
         except Exception as e:
             logger.error(f"Failed to schedule campaign {campaign_id}: {str(e)}")
-            campaign.status = 'failed'
+            campaign.transition_to('failed')
             db.commit()
 
     return JSONResponse(status_code=201, content=campaign_response)
@@ -449,7 +449,7 @@ async def cancel_scheduled_campaign(campaign_id: int, db: Session = Depends(get_
         scheduler.cancel_campaign(campaign_id)
 
         # Update status
-        campaign.status = 'cancelled'
+        campaign.transition_to('cancelled')
         db.commit()
 
         return JSONResponse(content={

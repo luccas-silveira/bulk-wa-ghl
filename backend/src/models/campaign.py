@@ -80,7 +80,7 @@ class Campaign(Base):
     VALID_TRANSITIONS: dict = {
         'draft':     {'scheduled', 'executing', 'failed'},
         'executing': {'paused', 'completed', 'failed'},
-        'paused':    {'executing'},
+        'paused':    {'executing', 'completed', 'failed'},
         'scheduled': {'cancelled', 'failed', 'executing'},
     }
 

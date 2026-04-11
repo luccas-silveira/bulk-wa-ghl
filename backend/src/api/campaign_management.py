@@ -138,7 +138,7 @@ async def pause_campaign(
             )
 
         # Update status
-        campaign.status = 'paused'
+        campaign.transition_to('paused')
         campaign.paused_at = datetime.now()
         db.commit()
         db.refresh(campaign)

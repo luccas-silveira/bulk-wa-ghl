@@ -73,7 +73,7 @@ class CampaignExecutorService:
         logger.info(f"Starting execution of campaign {campaign_id}: {campaign.name}")
 
         # Update campaign status to executing
-        campaign.status = 'executing'
+        campaign.transition_to('executing')
         self.db.commit()
 
         # Get sending delay based on speed
@@ -193,7 +193,7 @@ class CampaignExecutorService:
             # Mark campaign as completed (only if not paused)
             self.db.refresh(campaign)
             if campaign.status != 'paused':
-                campaign.status = 'completed'
+                campaign.transition_to('completed')
                 logger.info(f"Campaign {campaign_id} completed successfully")
             else:
                 logger.info(f"Campaign {campaign_id} execution stopped (paused)")
@@ -203,7 +203,7 @@ class CampaignExecutorService:
             self.db.rollback()
             campaign = self.db.query(Campaign).filter(Campaign.id == campaign_id).first()
             if campaign:
-                campaign.status = 'failed'
+                campaign.transition_to('failed')
             logger.error(f"Campaign {campaign_id} failed: {str(e)}")
             raise
 
@@ -310,7 +310,7 @@ class CampaignExecutorService:
         # Check if we have persisted data to resume from
         if not campaign.contacts_data or not campaign.messages_template:
             logger.warning(f"Campaign {campaign_id} has no persisted data, marking as completed")
-            campaign.status = 'completed'
+            campaign.transition_to('completed')
             self.db.commit()
             return {
                 'campaign_id': campaign_id,
@@ -335,7 +335,7 @@ class CampaignExecutorService:
 
         if not remaining_contacts:
             logger.info(f"Campaign {campaign_id}: all contacts already sent, marking completed")
-            campaign.status = 'completed'
+            campaign.transition_to('completed')
             self.db.commit()
             return {
                 'campaign_id': campaign_id,

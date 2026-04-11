@@ -40,6 +40,18 @@ class TestValidTransitions:
         c.transition_to('executing')
         assert c.status == 'executing'
 
+    def test_paused_to_completed(self):
+        """Resume with nothing left to do should complete directly from paused."""
+        c = Campaign(status='paused')
+        c.transition_to('completed')
+        assert c.status == 'completed'
+
+    def test_paused_to_failed(self):
+        """Resume that encounters a fatal error should be allowed to fail from paused."""
+        c = Campaign(status='paused')
+        c.transition_to('failed')
+        assert c.status == 'failed'
+
     def test_scheduled_to_cancelled(self):
         c = Campaign(status='scheduled')
         c.transition_to('cancelled')
@@ -77,10 +89,10 @@ class TestInvalidTransitions:
         with pytest.raises(InvalidTransitionError):
             c.transition_to('completed')
 
-    def test_paused_to_completed_not_allowed(self):
+    def test_paused_to_scheduled_not_allowed(self):
         c = Campaign(status='paused')
         with pytest.raises(InvalidTransitionError):
-            c.transition_to('completed')
+            c.transition_to('scheduled')
 
     def test_error_includes_from_state(self):
         c = Campaign(status='completed')
