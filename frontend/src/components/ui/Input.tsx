@@ -43,9 +43,13 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     variant = 'default',
     fullWidth = false,
     disabled,
+    id: idProp,
     ...props
   }, ref) => {
     const [showPassword, setShowPassword] = React.useState(false);
+    const generatedId = React.useId();
+    // Se o consumidor passar id explicitamente via props, usar o dele; caso contrário, usar o gerado
+    const id = idProp ?? generatedId;
     const isPassword = type === 'password';
     const inputType = isPassword && showPassword ? 'text' : type;
 
@@ -82,7 +86,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className={fullWidth ? 'w-full' : ''}>
         {label && (
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
             {label}
           </label>
         )}
@@ -95,6 +99,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             </div>
           )}
           <input
+            id={id}
             type={inputType}
             className={baseInputClasses}
             ref={ref}
