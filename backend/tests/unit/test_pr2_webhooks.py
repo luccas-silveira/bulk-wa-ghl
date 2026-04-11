@@ -70,9 +70,14 @@ class TestWebhookSignatureWarning:
         assert resp.status_code == 401
         # Warning must have been called at least once
         assert mock_logger.warning.called, "Expected logger.warning to be called on sig failure"
-        # Warning message should mention signature or security context
-        call_args = str(mock_logger.warning.call_args_list)
+        # Check the call args
+        warning_call = mock_logger.warning.call_args
+        # Verify message contains signature-related keyword
         assert any(
             "sig" in str(a).lower() or "auth" in str(a).lower() or "invalid" in str(a).lower()
             for a in mock_logger.warning.call_args_list
-        ), f"Warning did not mention signature failure: {call_args}"
+        ), f"Warning did not mention signature failure: {mock_logger.warning.call_args_list}"
+        # Verify extra dict has client_ip
+        assert warning_call.kwargs.get("extra", {}).get("client_ip") is not None, (
+            "Expected extra={'client_ip': ...} in logger.warning call"
+        )

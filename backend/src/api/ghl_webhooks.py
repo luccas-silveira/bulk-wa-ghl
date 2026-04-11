@@ -61,7 +61,7 @@ async def process_webhook(
         # GHL-26: log warning with client IP for audit
         client_ip = request.client.host if request.client else "unknown"
         logger.warning(
-            "Webhook signature validation failed — possible replay/spoofing attempt",
+            f"Webhook signature validation failed from {client_ip} — possible replay/spoofing attempt",
             extra={"client_ip": client_ip}
         )
         raise HTTPException(
