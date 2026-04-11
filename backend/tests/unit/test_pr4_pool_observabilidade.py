@@ -156,3 +156,67 @@ class TestPoolMetrics:
         assert db_pool_size_gauge._value.get() == 20.0
         assert db_pool_checkedout_gauge._value.get() == 2.0
         assert db_pool_queue_size_gauge._value.get() == 3.0
+
+
+# ---------------------------------------------------------------------------
+# Task 4: RAIZ-04 — Phone masking filter
+# ---------------------------------------------------------------------------
+
+
+class TestPhoneMaskFilter:
+    """RAIZ-04: PhoneMaskFilter mascara E.164 antes de emitir log."""
+
+    def test_filter_class_exists(self):
+        from src.logging_config import PhoneMaskFilter
+        assert PhoneMaskFilter is not None
+
+    def test_masks_e164_in_message(self):
+        import logging
+        from src.logging_config import PhoneMaskFilter
+
+        f = PhoneMaskFilter()
+        record = logging.LogRecord(
+            name="test", level=logging.INFO, pathname="", lineno=0,
+            msg="Processing +5511999999999 (João)", args=(), exc_info=None
+        )
+        result = f.filter(record)
+        assert result is True
+        assert "+5511999999999" not in record.getMessage()
+        assert "+***" in record.getMessage()
+
+    def test_masks_multiple_phones_in_one_message(self):
+        import logging
+        from src.logging_config import PhoneMaskFilter
+
+        f = PhoneMaskFilter()
+        record = logging.LogRecord(
+            name="test", level=logging.INFO, pathname="", lineno=0,
+            msg="Sending from +12025550100 to +5521988887777",
+            args=(), exc_info=None
+        )
+        f.filter(record)
+        assert "+12025550100" not in record.getMessage()
+        assert "+5521988887777" not in record.getMessage()
+        assert record.getMessage().count("+***") == 2
+
+    def test_preserves_message_without_phone(self):
+        import logging
+        from src.logging_config import PhoneMaskFilter
+
+        f = PhoneMaskFilter()
+        record = logging.LogRecord(
+            name="test", level=logging.INFO, pathname="", lineno=0,
+            msg="Campaign 42 completed successfully", args=(), exc_info=None
+        )
+        original = record.getMessage()
+        f.filter(record)
+        assert record.getMessage() == original
+
+    def test_filter_applied_to_root_handler(self):
+        """PhoneMaskFilter deve estar instalado no handler do root logger após setup_logging()."""
+        import logging
+        from src.logging_config import setup_logging, PhoneMaskFilter
+        setup_logging()
+        root = logging.getLogger()
+        all_filters = [f for h in root.handlers for f in h.filters]
+        assert any(isinstance(f, PhoneMaskFilter) for f in all_filters)
