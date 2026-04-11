@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 const NotFound: React.FC = () => (
   <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
@@ -7,12 +8,12 @@ const NotFound: React.FC = () => (
     <p className="text-gray-500 mb-6">
       A rota que você tentou acessar não existe.
     </p>
-    <a
-      href="/"
+    <Link
+      to="/"
       className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
     >
       Voltar ao Dashboard
-    </a>
+    </Link>
   </div>
 );
 

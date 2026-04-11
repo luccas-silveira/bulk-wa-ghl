@@ -57,7 +57,7 @@ const AppRoutes: React.FC = () => {
         path="/"
         element={
           <ProtectedRoute>
-            <Layout currentRoute="/">
+            <Layout>
               <Dashboard
                 onNavigateToCampaign={() => navigate('/campaigns/new')}
                 onNavigateToManagement={() => navigate('/campaigns')}
@@ -70,7 +70,7 @@ const AppRoutes: React.FC = () => {
         path="/campaigns/new"
         element={
           <ProtectedRoute>
-            <Layout currentRoute="/campaigns/new">
+            <Layout>
               <CampaignWizard
                 onSubmit={handleCreateCampaign}
                 onCancel={() => navigate('/')}
@@ -83,7 +83,7 @@ const AppRoutes: React.FC = () => {
         path="/campaigns"
         element={
           <ProtectedRoute>
-            <Layout currentRoute="/campaigns">
+            <Layout>
               <CampaignsPage
                 onCreateCampaign={() => navigate('/campaigns/new')}
               />
@@ -95,7 +95,7 @@ const AppRoutes: React.FC = () => {
         path="/analytics"
         element={
           <ProtectedRoute>
-            <Layout currentRoute="/analytics">
+            <Layout>
               <div className="p-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">Analytics</h2>
                 <p className="text-gray-600">Analytics dashboard coming soon...</p>
@@ -108,7 +108,7 @@ const AppRoutes: React.FC = () => {
         path="/settings"
         element={
           <ProtectedRoute>
-            <Layout currentRoute="/settings">
+            <Layout>
               <div className="p-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">Configurações</h2>
                 <p className="text-gray-600">Settings panel coming soon...</p>
