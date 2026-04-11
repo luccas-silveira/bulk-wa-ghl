@@ -36,6 +36,17 @@ export const useToast = () => {
 // Toast Provider Component
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastData[]>([]);
+  const timersRef = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const removeToast = useCallback((id: string) => {
+    // Cancelar timer pendente se ainda não disparou
+    const existing = timersRef.current.get(id);
+    if (existing !== undefined) {
+      clearTimeout(existing);
+      timersRef.current.delete(id);
+    }
+    setToasts(prev => prev.filter(toast => toast.id !== id));
+  }, []);
 
   const addToast = useCallback((toastData: Omit<ToastData, 'id'>) => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -47,19 +58,28 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setToasts(prev => [...prev, toast]);
 
-    // Auto-remove toast after duration
+    // Registrar timer no Map para poder cancelar no cleanup ou no removeToast
     if (toast.duration && toast.duration > 0) {
-      setTimeout(() => {
-        removeToast(id);
+      const timerId = setTimeout(() => {
+        timersRef.current.delete(id);
+        setToasts(prev => prev.filter(t => t.id !== id));
       }, toast.duration);
+      timersRef.current.set(id, timerId);
     }
   }, []);
 
-  const removeToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(toast => toast.id !== id));
+  // Limpar todos os timers pendentes quando o Provider for desmontado
+  React.useEffect(() => {
+    return () => {
+      timersRef.current.forEach(timerId => clearTimeout(timerId));
+      timersRef.current.clear();
+    };
   }, []);
 
   const clearAllToasts = useCallback(() => {
+    // Cancelar todos os timers antes de limpar o estado
+    timersRef.current.forEach(timerId => clearTimeout(timerId));
+    timersRef.current.clear();
     setToasts([]);
   }, []);
 
