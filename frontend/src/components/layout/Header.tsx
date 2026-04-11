@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export interface HeaderProps {
   currentRoute?: string;
@@ -6,7 +7,11 @@ export interface HeaderProps {
   className?: string;
 }
 
-const Header: React.FC<HeaderProps> = ({ currentRoute = '/', onNavigate, className }) => {
+const Header: React.FC<HeaderProps> = ({ className }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const currentRoute = location.pathname;
+
   const headerClasses = [
     'bg-white border-b border-gray-200',
     className
@@ -30,19 +35,19 @@ const Header: React.FC<HeaderProps> = ({ currentRoute = '/', onNavigate, classNa
           {/* Navigation Tabs */}
           <nav className="flex gap-2 border-b border-gray-200">
             <button
-              onClick={() => onNavigate?.('/')}
+              onClick={() => navigate('/')}
               className={`${buttonBaseClasses} ${isActive('/') ? activeClasses : inactiveClasses}`}
             >
               Estatísticas
             </button>
             <button
-              onClick={() => onNavigate?.('/campaigns')}
+              onClick={() => navigate('/campaigns')}
               className={`${buttonBaseClasses} ${isActive('/campaigns') ? activeClasses : inactiveClasses}`}
             >
               Gerenciar Campanhas
             </button>
             <button
-              onClick={() => onNavigate?.('/campaigns/new')}
+              onClick={() => navigate('/campaigns/new')}
               className={`${buttonBaseClasses} ${isActive('/campaigns/new') ? activeClasses : inactiveClasses}`}
             >
               Criar Campanha
