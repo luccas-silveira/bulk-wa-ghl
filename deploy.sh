@@ -137,10 +137,14 @@ fi
 echo -e "${GREEN}✅ No placeholder strings found${NC}"
 echo ""
 
-# Backup database if it exists
+# Backup database if it exists — abort if backup fails
 if docker ps | grep -q wpp_disp_postgres; then
     echo "📦 Creating database backup before deployment..."
-    ./scripts/backup-db.sh || echo "⚠️  Backup failed, continuing anyway..."
+    if ! ./scripts/backup-db.sh; then
+        echo -e "${RED}❌ Pre-deploy backup failed. Aborting deployment to protect data integrity.${NC}"
+        echo "Fix the backup script or resolve disk/permission issues before retrying."
+        exit 1
+    fi
     echo ""
 fi
 
@@ -168,6 +172,9 @@ echo "🔄 Running database migrations..."
 if ! ./scripts/migrate-db.sh; then
     echo ""
     echo -e "${RED}❌ Migration failed! Rolling back...${NC}"
+    echo "Running alembic downgrade -1 to revert last migration..."
+    docker exec wpp_disp_backend python -m alembic downgrade -1 2>/dev/null || \
+        echo -e "${YELLOW}⚠️  alembic downgrade -1 failed or no previous revision — check DB state manually.${NC}"
     docker-compose $COMPOSE_FILES down
     echo "Services stopped. Please fix the migration and redeploy."
     exit 1
