@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import time
 from dotenv import load_dotenv
+from src.schemas.campaign import normalize_phone
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -61,11 +62,14 @@ class GHLContactsService:
 
         Args:
             location_id: GHL location identifier
-            phone: Phone number to search (E.164 format)
+            phone: Phone number to search (any format; normalized to E.164 before query)
 
         Returns:
             Contact dictionary if found, None otherwise
         """
+        # Normalizar número para E.164 antes de buscar no GHL
+        phone = normalize_phone(phone)
+
         # Get access token
         if self.use_private_token:
             access_token = self.private_token

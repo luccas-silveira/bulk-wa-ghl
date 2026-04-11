@@ -63,3 +63,73 @@ class TestContactDataPhoneNormalization:
     def test_us_phone_normalized(self):
         contact = ContactData(phone_number="+1 (212) 555-1234")
         assert contact.phone_number == "+12125551234"
+
+
+class TestGHLContactsServicePhoneNormalization:
+    """GHLContactsService normaliza o phone antes de chamar a API GHL"""
+
+    def _make_service(self):
+        from unittest.mock import MagicMock, AsyncMock, patch
+        from src.services.ghl_contacts_service import GHLContactsService
+
+        db = MagicMock()
+        with patch.dict("os.environ", {"GHL_PRIVATE_TOKEN": "tok_test"}):
+            svc = GHLContactsService(db)
+        return svc
+
+    @pytest.mark.asyncio
+    async def test_search_normalizes_phone_before_api_call(self):
+        from unittest.mock import AsyncMock, patch, MagicMock
+        import httpx
+
+        svc = self._make_service()
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"contacts": [{"id": "c1"}]}
+        mock_response.raise_for_status = MagicMock()
+
+        captured_params = {}
+
+        async def fake_get(url, params=None, headers=None):
+            captured_params.update(params or {})
+            return mock_response
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = fake_get
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await svc.search_contact_by_phone("loc_1", "+55 11 99999-8888")
+
+        # O número enviado na query deve estar em E.164
+        assert captured_params.get("query") == "+5511999998888"
+        assert result == {"id": "c1"}
+
+    @pytest.mark.asyncio
+    async def test_search_passes_through_unparseable_phone(self):
+        from unittest.mock import AsyncMock, patch, MagicMock
+
+        svc = self._make_service()
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"contacts": []}
+        mock_response.raise_for_status = MagicMock()
+
+        captured_params = {}
+
+        async def fake_get(url, params=None, headers=None):
+            captured_params.update(params or {})
+            return mock_response
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.get = fake_get
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await svc.search_contact_by_phone("loc_1", "abc-not-a-phone")
+
+        # Número não parseável é passado como está — sem erro
+        assert captured_params.get("query") == "abc-not-a-phone"
+        assert result is None
