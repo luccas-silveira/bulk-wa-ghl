@@ -2,50 +2,15 @@
  * API Types for WhatsApp Campaign Management with GoHighLevel
  *
  * TypeScript type definitions for API requests and responses.
- * Updated to use GoHighLevel (GHL) instead of WAHA.
  */
 
 // Import GHL types
 export type { GHLLocation, GHLLocationValidation, GHLMessage, GHLConversation } from './ghl';
 
-// Legacy WAHA Session Types (deprecated)
-/**
- * @deprecated Use GHLLocation from './ghl' instead
- */
-export interface WAHASession {
-  id: string;
-  name: string;
-  status: 'WORKING' | 'STARTING' | 'SCAN_QR_CODE' | 'STOPPED' | 'FAILED';
-  is_active: boolean;
-  me: {
-    id: string;
-    pushName: string;
-  };
-  last_updated: string;
-}
-
-/**
- * @deprecated Use GHLLocation[] instead
- */
-export interface WAHASessionsResponse {
-  sessions: WAHASession[];
-}
-
-/**
- * @deprecated Use GHLLocationValidation instead
- */
-export interface WAHASessionValidation {
-  valid: boolean;
-  session_id: string;
-  session_name: string;
-  status: string;
-  validated_at: string;
-}
-
-// Campaign Types (Updated for GHL)
+// Campaign Types
 export interface CampaignCreateRequest {
   name: string;
-  ghl_location_id: string; // GHL location ID (replaces waha_session_id)
+  ghl_location_id: string;
   ghl_user_id?: string; // Single user (backwards compat)
   ghl_user_ids?: string[]; // Multiple users for round-robin distribution
   sending_speed: 'slow' | 'medium' | 'fast';
@@ -92,12 +57,21 @@ export interface CampaignResponse {
   estimated_recipients: number;
 }
 
+export interface DeliveryTimeline {
+  labels: string[];
+  sent: number[];
+  delivered: number[];
+  delivery_rate: number[];
+  read_rate: number[];
+}
+
 // Dashboard Types (Updated to match backend API contract)
 export interface DashboardResponse {
   campaign_metrics: CampaignMetrics;
   delivery_metrics: DeliveryMetrics;
   recent_campaigns: RecentCampaign[];
   top_performing_campaigns: TopCampaign[];
+  timeline: DeliveryTimeline;
   time_range: string;
   filter_info: string;
 }
@@ -163,37 +137,15 @@ export interface ValidationError {
   field_errors?: Record<string, string[]>;
 }
 
-export interface SessionValidationError {
-  error: 'Session validation failed';
-  message: string;
-  session_status: string;
-}
-
-// Legacy Types (for backwards compatibility during migration)
-/**
- * @deprecated Use waha_session_id instead
- */
-export interface LegacyCampaignRequest {
-  name: string;
-  whatsapp_channel?: string;
-  ghl_user_id?: string;
-  ghl_team_id?: string; // This field no longer exists
-  sending_speed: 'slow' | 'medium' | 'fast';
-  schedule_type: 'immediate' | 'scheduled';
-  messages: CampaignMessage[];
-  audience_criteria: AudienceCriteria;
-}
-
 // Utility Types
 export type CampaignStatus = 'draft' | 'scheduled' | 'executing' | 'completed' | 'failed';
 export type SendingSpeed = 'slow' | 'medium' | 'fast';
 export type ScheduleType = 'immediate' | 'scheduled';
-export type WAHASessionStatus = 'WORKING' | 'STARTING' | 'SCAN_QR_CODE' | 'STOPPED' | 'FAILED';
 
 // Form Types for Frontend Components
 export interface CampaignFormData {
   name: string;
-  ghl_location_id: string; // GHL location ID (replaces waha_session_id)
+  ghl_location_id: string;
   ghl_user_id?: string; // Single user (backwards compat)
   ghl_user_ids?: string[]; // Multiple users for round-robin
   sending_speed: SendingSpeed;
@@ -212,15 +164,6 @@ export interface CampaignFormData {
 }
 
 // Component Props Types
-export interface SessionSelectorProps {
-  value: string;
-  onChange: (sessionId: string) => void;
-  required?: boolean;
-  disabled?: boolean;
-  placeholder?: string;
-  error?: string;
-}
-
 export interface DashboardCardProps {
   title: string;
   value: number | string;

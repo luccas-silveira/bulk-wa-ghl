@@ -156,14 +156,14 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
       failed: Math.floor((metrics?.delivery_metrics.sent || 0) * (1 - (metrics?.delivery_metrics.delivery_rate || 0) / 100))
     },
     deliveryRate: {
-      labels: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom'],
-      deliveryRate: [95, 92, 97, 89, 94, 91, 96],
-      readRate: [78, 82, 85, 79, 83, 77, 81]
+      labels: metrics?.timeline?.labels ?? [],
+      deliveryRate: metrics?.timeline?.delivery_rate ?? [],
+      readRate: metrics?.timeline?.read_rate ?? []
     },
     volume: {
-      labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'],
-      sent: [1200, 1900, 3000, 5000, 4200, 3800],
-      delivered: [1140, 1805, 2850, 4750, 3990, 3610]
+      labels: metrics?.timeline?.labels ?? [],
+      sent: metrics?.timeline?.sent ?? [],
+      delivered: metrics?.timeline?.delivered ?? []
     }
   }), [metrics]);
 
