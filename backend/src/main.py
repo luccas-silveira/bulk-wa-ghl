@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 import asyncio
 import logging
+import hmac
 import os
 import time
 import uuid
@@ -187,12 +188,15 @@ if metrics_enabled:
 
     @app.get("/metrics")
     async def metrics_endpoint(request: Request):
-        """Expose Prometheus metrics for scraping. Protected by optional METRICS_TOKEN."""
-        from src.config import METRICS_TOKEN
-        if METRICS_TOKEN:
+        """Expose Prometheus metrics for scraping. Protected by METRICS_TOKEN in production."""
+        from src.config import METRICS_TOKEN, DEBUG as _DEBUG
+        if not _DEBUG and METRICS_TOKEN:
             auth_header = request.headers.get("Authorization", "")
-            if auth_header != f"Bearer {METRICS_TOKEN}":
+            expected = f"Bearer {METRICS_TOKEN}"
+            if not hmac.compare_digest(auth_header, expected):
                 return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+        from src.metrics import update_pool_metrics
+        update_pool_metrics(engine)
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # ===== DASHBOARD API (NOW USES REAL DATA FROM ANALYTICS ROUTER) =====

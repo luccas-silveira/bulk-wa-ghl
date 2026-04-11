@@ -122,3 +122,37 @@ class TestBatchCommits:
         assert commit_call_count <= 5, (
             f"Expected ≤ 5 commits for 10 messages with batch_size=10, got {commit_call_count}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Task 3: PERS-19 — Pool metrics
+# ---------------------------------------------------------------------------
+
+
+class TestPoolMetrics:
+    """PERS-19: métricas de pool expostas via Gauge do Prometheus."""
+
+    def test_pool_gauges_exist_in_metrics_module(self):
+        """db_pool_size, db_pool_checkedout, db_pool_queue_size devem existir em metrics.py."""
+        from src import metrics
+        assert hasattr(metrics, "db_pool_size_gauge")
+        assert hasattr(metrics, "db_pool_checkedout_gauge")
+        assert hasattr(metrics, "db_pool_queue_size_gauge")
+
+    def test_update_pool_metrics_parses_status_string(self):
+        """update_pool_metrics() deve parsear engine.pool.status() e atualizar os Gauges."""
+        from src.metrics import update_pool_metrics, db_pool_size_gauge, db_pool_checkedout_gauge, db_pool_queue_size_gauge
+        from unittest.mock import MagicMock
+
+        fake_engine = MagicMock()
+        fake_engine.pool.status.return_value = (
+            "Pool size: 20  Connections in pool: 3 "
+            "Current Overflow: 0 Current Checked out connections: 2"
+        )
+
+        update_pool_metrics(fake_engine)
+
+        # Read gauge values via _value.get() — prometheus_client internal
+        assert db_pool_size_gauge._value.get() == 20.0
+        assert db_pool_checkedout_gauge._value.get() == 2.0
+        assert db_pool_queue_size_gauge._value.get() == 3.0
