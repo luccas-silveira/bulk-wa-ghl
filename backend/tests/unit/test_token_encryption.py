@@ -157,3 +157,47 @@ class TestTokenEncryptionService:
         key2 = TokenEncryptionService.generate_key()
 
         assert key1 != key2
+
+
+class TestMultiKeyRotation:
+    """GHL-20: MultiFernet key rotation"""
+
+    def test_single_key_still_works(self):
+        key = Fernet.generate_key().decode()
+        os.environ["GHL_TOKEN_ENCRYPTION_KEY"] = key
+        svc = TokenEncryptionService()
+        enc = svc.encrypt("tok")
+        assert svc.decrypt(enc) == "tok"
+
+    def test_two_keys_encrypts_with_first(self):
+        key1 = Fernet.generate_key().decode()
+        key2 = Fernet.generate_key().decode()
+        os.environ["GHL_TOKEN_ENCRYPTION_KEY"] = f"{key1},{key2}"
+        svc = TokenEncryptionService()
+        enc = svc.encrypt("tok")
+        # key1 alone should decrypt successfully
+        f1 = Fernet(key1.encode())
+        assert f1.decrypt(enc).decode() == "tok"
+
+    def test_token_encrypted_with_old_key_still_decrypts(self):
+        key_old = Fernet.generate_key().decode()
+        key_new = Fernet.generate_key().decode()
+        # Encrypt with old key
+        enc_old = Fernet(key_old.encode()).encrypt(b"tok")
+        # Service now configured with new key first, old key second
+        os.environ["GHL_TOKEN_ENCRYPTION_KEY"] = f"{key_new},{key_old}"
+        svc = TokenEncryptionService()
+        assert svc.decrypt(enc_old) == "tok"
+
+    def test_empty_key_segments_ignored(self):
+        key = Fernet.generate_key().decode()
+        os.environ["GHL_TOKEN_ENCRYPTION_KEY"] = f"{key},"  # trailing comma
+        svc = TokenEncryptionService()
+        enc = svc.encrypt("tok")
+        assert svc.decrypt(enc) == "tok"
+
+    def test_invalid_second_key_raises_on_init(self):
+        key_valid = Fernet.generate_key().decode()
+        os.environ["GHL_TOKEN_ENCRYPTION_KEY"] = f"{key_valid},not-a-valid-key"
+        with pytest.raises(ValueError, match="Invalid encryption key"):
+            TokenEncryptionService()

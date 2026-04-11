@@ -3,7 +3,7 @@ Token Encryption Service
 Handles encryption and decryption of OAuth tokens using Fernet symmetric encryption
 """
 import os
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet, MultiFernet, InvalidToken
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -23,19 +23,22 @@ class TokenEncryptionService:
     """
 
     def __init__(self):
-        """Initialize the encryption service with key from environment"""
-        encryption_key = os.getenv("GHL_TOKEN_ENCRYPTION_KEY")
-
-        if not encryption_key:
+        """Initialize with one or more comma-separated Fernet keys.
+        First key = current (used for encryption).
+        Remaining keys = previous (tried only for decryption, enabling rotation).
+        """
+        key_string = os.getenv("GHL_TOKEN_ENCRYPTION_KEY")
+        if not key_string:
             raise ValueError(
                 "GHL_TOKEN_ENCRYPTION_KEY environment variable is not set. "
                 "Generate a key using: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
             )
-
+        raw_keys = [k.strip() for k in key_string.split(",") if k.strip()]
         try:
-            self.cipher = Fernet(encryption_key.encode())
+            fernets = [Fernet(k.encode()) for k in raw_keys]
         except Exception as e:
             raise ValueError(f"Invalid encryption key format: {e}")
+        self.cipher = MultiFernet(fernets) if len(fernets) > 1 else fernets[0]
 
     def encrypt(self, token: str) -> bytes:
         """
