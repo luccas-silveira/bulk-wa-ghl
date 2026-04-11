@@ -4,14 +4,17 @@ FROM node:20-alpine as builder
 # Set working directory
 WORKDIR /app
 
+# Run as non-root user (node user exists in node:20-alpine with UID 1000)
+USER node
+
 # Copy package files
-COPY package*.json ./
+COPY --chown=node:node package*.json ./
 
 # Install dependencies
 RUN npm ci
 
 # Copy source code
-COPY . .
+COPY --chown=node:node . .
 
 # Build argument for API URL
 ARG VITE_API_URL=http://localhost:8000
