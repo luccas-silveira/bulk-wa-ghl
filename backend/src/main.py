@@ -178,6 +178,7 @@ async def health_check(db: Session = Depends(get_db)):
     return {
         "status": "healthy",
         "database": db_status,
+        "ghl_enabled": GHL_ENABLED,
         "service": "wpp-disp-backend",
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
