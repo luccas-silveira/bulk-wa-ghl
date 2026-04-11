@@ -13,6 +13,8 @@ from src.models.ghl_user import GHLUser
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 
 class GHLUsersService:
     """Service for managing GHL users"""
@@ -95,6 +97,9 @@ class GHLUsersService:
 
         for user_data in users_data:
             ghl_user_id = user_data.get('id')
+            if not ghl_user_id:
+                logger.warning("GHL API returned user without 'id', skipping: %s", user_data)
+                continue
             api_user_ids.add(ghl_user_id)
 
             existing_user = self.db.query(GHLUser).filter_by(ghl_user_id=ghl_user_id).first()

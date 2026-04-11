@@ -261,3 +261,50 @@ class TestSyncUsersMarksInactive:
             vals.get('is_active') is False
             for vals in update_calls
         ), f'Expected is_active=False update for empty API, got: {update_calls}'
+
+    def test_user_without_id_skipped_and_does_not_break_deactivation(self):
+        """API user without 'id' is skipped; bulk deactivation still fires for known user_B."""
+        import asyncio
+        from src.services.ghl_users_service import GHLUsersService
+        from src.models.ghl_user import GHLUser
+
+        db = MagicMock()
+        svc = GHLUsersService(db)
+        svc.private_token = 'tok'
+        svc.use_private_token = True
+
+        # API returns user_A (valid) and a broken entry without 'id'
+        api_users = [
+            {'id': 'user_A', 'name': 'Alice', 'email': 'a@x.com'},
+            {'name': 'Ghost', 'email': 'g@x.com'},  # no 'id'
+        ]
+        svc.fetch_users_from_api = AsyncMock(return_value=api_users)
+
+        user_A = MagicMock(spec=GHLUser)
+        user_A.ghl_user_id = 'user_A'
+        user_A.is_active = True
+
+        def mock_filter_by(**kwargs):
+            uid = kwargs.get('ghl_user_id')
+            if uid == 'user_A':
+                m = MagicMock()
+                m.first.return_value = user_A
+                return m
+            m = MagicMock()
+            m.first.return_value = None
+            return m
+
+        db.query.return_value.filter_by = mock_filter_by
+
+        update_calls = []
+        def mock_update_inactive(vals, synchronize_session=False):
+            update_calls.append(vals)
+        db.query.return_value.filter.return_value.filter.return_value.update = mock_update_inactive
+
+        asyncio.run(svc.sync_users_for_location('loc1'))
+
+        # None must NOT be in api_user_ids — bulk deactivation must still be called
+        assert any(
+            vals.get('is_active') is False
+            for vals in update_calls
+        ), 'Expected bulk update to set is_active=False even when a user without id is present'
