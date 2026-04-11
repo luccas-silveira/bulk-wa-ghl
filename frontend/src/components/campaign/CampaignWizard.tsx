@@ -10,6 +10,7 @@ import Papa from 'papaparse';
 import { parsePhoneNumber, isValidPhoneNumber } from 'libphonenumber-js';
 import { CampaignFormData, CampaignCreateRequest, ContactCsvData, SendingSpeed, ScheduleType } from '../../types/api';
 import { useGHLUsers } from '../../hooks/useGHLUsers';
+import { useToast } from '../ui/Toast';
 
 interface CampaignWizardProps {
   onSubmit: (campaign: CampaignCreateRequest) => Promise<void>;
@@ -47,11 +48,36 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
   });
   const [showMapping, setShowMapping] = useState(false);
 
+  // Toast hook
+  const { addToast } = useToast();
+
   // Load users for fixed location
   const { users, loading: usersLoading, error: usersError } = useGHLUsers({
     locationId: formData.ghl_location_id,
     autoFetch: true,
   });
+
+  // Check if form is dirty (has unsaved changes)
+  const isDirty = React.useMemo(() => {
+    return (
+      formData.name.trim().length > 0 ||
+      (formData.ghl_user_ids?.length ?? 0) > 0 ||
+      formData.messages.some((m) => m.text.trim() || (m.media_url ?? '').trim()) ||
+      parsedContacts.length > 0
+    );
+  }, [formData, parsedContacts]);
+
+  // Show beforeunload warning when form is dirty
+  React.useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
 
   // Handle CSV file upload and parsing
   const MAX_CSV_SIZE_MB = 10;
@@ -270,8 +296,14 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
       };
 
       await onSubmit(campaignRequest);
-    } catch {
-      // Error is handled by the parent via onSubmit rejection
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Erro desconhecido ao criar campanha';
+      addToast({
+        type: 'error',
+        title: 'Erro ao criar campanha',
+        message,
+      });
     } finally {
       setLoading(false);
     }
