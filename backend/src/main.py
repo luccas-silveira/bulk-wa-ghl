@@ -78,6 +78,17 @@ app = FastAPI(
 
 logger = logging.getLogger(__name__)
 
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global fallback: log internally, return safe 500 to client."""
+    logger.exception("Unhandled exception", exc_info=exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
+
 metrics_enabled = ENABLE_METRICS
 app.add_middleware(
     CORSMiddleware,
@@ -120,7 +131,7 @@ async def add_request_context(request: Request, call_next):
         logger.exception("Unhandled exception during request")
         return JSONResponse(
             status_code=500,
-            content={"error": "Internal Server Error"}
+            content={"detail": "Internal server error"}
         )
     finally:
         duration = time.perf_counter() - start_time
