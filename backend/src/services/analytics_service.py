@@ -238,3 +238,67 @@ def get_top_campaigns(
     campaign_metrics.sort(key=lambda x: (x['read_rate'], x['delivery_rate']), reverse=True)
 
     return campaign_metrics[:limit]
+
+
+def get_delivery_timeline(
+    db: Session,
+    ghl_user_id: Optional[str] = None,
+    days: int = 30
+) -> Dict:
+    """
+    Get daily delivery timeline data for dashboard charts (ANA-01).
+
+    Returns data grouped by date covering the last `days` days,
+    suitable for both DeliveryRateChart and VolumeMetricsChart.
+    """
+    from collections import defaultdict
+
+    date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
+
+    query = db.query(Message).filter(
+        Message.sent_at >= date_threshold,
+        Message.sent_at.isnot(None),
+    )
+
+    if ghl_user_id:
+        query = query.join(Campaign).filter(
+            Campaign.ghl_user_id == ghl_user_id
+        )
+
+    messages = query.all()
+
+    by_date: dict = defaultdict(lambda: {'sent': 0, 'delivered': 0, 'read': 0, 'total': 0})
+
+    for m in messages:
+        day = m.sent_at.date()
+        by_date[day]['total'] += 1
+        if m.status == 'sent':
+            by_date[day]['sent'] += 1
+        elif m.status in ('delivered', 'read'):
+            by_date[day]['delivered'] += 1
+            if m.status == 'read':
+                by_date[day]['read'] += 1
+
+    sorted_dates = sorted(by_date.keys())
+
+    labels = [d.strftime('%d/%m') for d in sorted_dates]
+    sent_list = [by_date[d]['sent'] for d in sorted_dates]
+    delivered_list = [by_date[d]['delivered'] for d in sorted_dates]
+
+    delivery_rate = []
+    read_rate = []
+    for d in sorted_dates:
+        total = by_date[d]['total']
+        sent_d = by_date[d]['sent']
+        deliv_d = by_date[d]['delivered']
+        read_d = by_date[d]['read']
+        delivery_rate.append(round(deliv_d / total * 100, 1) if total > 0 else 0.0)
+        read_rate.append(round(read_d / total * 100, 1) if total > 0 else 0.0)
+
+    return {
+        'labels': labels,
+        'sent': sent_list,
+        'delivered': delivered_list,
+        'delivery_rate': delivery_rate,
+        'read_rate': read_rate,
+    }

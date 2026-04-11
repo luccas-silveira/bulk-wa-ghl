@@ -71,6 +71,13 @@ async def get_dashboard(
             limit=10
         )
 
+        # Get delivery timeline for charts
+        timeline = analytics_service.get_delivery_timeline(
+            db=db,
+            ghl_user_id=ghl_user_id,
+            days=days
+        )
+
         # Build time range string
         time_range = f"Últimos {days} dias"
 
@@ -86,6 +93,7 @@ async def get_dashboard(
             "delivery_metrics": delivery_metrics,
             "recent_campaigns": recent_campaigns,
             "top_performing_campaigns": top_performing_campaigns,
+            "timeline": timeline,
             "time_range": time_range,
             "filter_info": filter_info
         }

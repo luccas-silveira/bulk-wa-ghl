@@ -905,3 +905,77 @@ class TestGetTopCampaigns:
         assert result[0]['delivered_count'] == 10
         assert result[0]['read_rate'] == 100.0
         assert result[0]['delivery_rate'] == 100.0
+
+
+class TestGetDeliveryTimeline:
+    """ANA-01: timeline data for dashboard charts"""
+
+    def test_returns_empty_when_no_messages(self, db_session):
+        from src.services.analytics_service import get_delivery_timeline
+        result = get_delivery_timeline(db_session, days=30)
+        assert result == {
+            'labels': [],
+            'sent': [],
+            'delivered': [],
+            'delivery_rate': [],
+            'read_rate': [],
+        }
+
+    def test_groups_messages_by_date(self, db_session):
+        from src.services.analytics_service import get_delivery_timeline
+        from datetime import datetime, timedelta, timezone
+
+        campaign = Campaign(name="TL", status='completed', ghl_location_id="loc1")
+        db_session.add(campaign)
+        db_session.commit()
+
+        today = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
+        yesterday = today - timedelta(days=1)
+
+        # Today: 3 sent, 2 delivered
+        for _ in range(3):
+            db_session.add(Message(campaign_id=campaign.id, recipient_phone="+5511000000001",
+                                   content="m", status='sent', sent_at=today))
+        for _ in range(2):
+            db_session.add(Message(campaign_id=campaign.id, recipient_phone="+5511000000002",
+                                   content="m", status='delivered', sent_at=today))
+        # Yesterday: 4 delivered, 1 read
+        for _ in range(4):
+            db_session.add(Message(campaign_id=campaign.id, recipient_phone="+5511000000003",
+                                   content="m", status='delivered', sent_at=yesterday))
+        db_session.add(Message(campaign_id=campaign.id, recipient_phone="+5511000000004",
+                               content="m", status='read', sent_at=yesterday))
+        db_session.commit()
+
+        result = get_delivery_timeline(db_session, days=30)
+
+        assert len(result['labels']) == 2
+        # Labels sorted ascending (yesterday first)
+        assert result['labels'][0] == yesterday.strftime('%d/%m')
+        assert result['labels'][1] == today.strftime('%d/%m')
+        # Yesterday: 5 total, 5 delivered/read → 100% delivery rate, 20% read rate
+        assert result['sent'][0] == 0
+        assert result['delivered'][0] == 5   # 4 delivered + 1 read
+        assert result['delivery_rate'][0] == 100.0
+        assert result['read_rate'][0] == 20.0  # 1/5
+        # Today: 5 total, 2 delivered → 40% delivery rate
+        assert result['sent'][1] == 3
+        assert result['delivered'][1] == 2
+        assert result['delivery_rate'][1] == 40.0  # 2/5
+
+    def test_respects_days_filter(self, db_session):
+        from src.services.analytics_service import get_delivery_timeline
+        from datetime import datetime, timedelta, timezone
+
+        campaign = Campaign(name="TL2", status='completed', ghl_location_id="loc1")
+        db_session.add(campaign)
+        db_session.commit()
+
+        now = datetime.now(timezone.utc)
+        # One message 40 days ago (outside 30-day window)
+        db_session.add(Message(campaign_id=campaign.id, recipient_phone="+5511000000005",
+                               content="m", status='sent', sent_at=now - timedelta(days=40)))
+        db_session.commit()
+
+        result = get_delivery_timeline(db_session, days=30)
+        assert result['labels'] == []
