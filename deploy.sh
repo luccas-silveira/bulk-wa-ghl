@@ -93,6 +93,50 @@ fi
 echo -e "${GREEN}✅ Pre-deployment checks passed${NC}"
 echo ""
 
+# Guard: ensure we are on the correct branch before pulling
+echo "🔍 Checking git branch..."
+CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "")
+EXPECTED_BRANCH="main"
+if [ -n "$CURRENT_BRANCH" ] && [ "$CURRENT_BRANCH" != "$EXPECTED_BRANCH" ]; then
+    echo -e "${RED}❌ Current branch is '${CURRENT_BRANCH}', expected '${EXPECTED_BRANCH}'.${NC}"
+    echo "Switch to '${EXPECTED_BRANCH}' before deploying: git checkout ${EXPECTED_BRANCH}"
+    exit 1
+fi
+echo -e "${GREEN}✅ Branch check passed (${CURRENT_BRANCH:-detached HEAD})${NC}"
+echo ""
+
+# Guard: ensure at least 1GB of free disk space
+echo "🔍 Checking disk space..."
+FREE_KB=$(df -k . | awk 'NR==2 {print $4}')
+MIN_FREE_KB=$((1 * 1024 * 1024))  # 1 GB in KB
+if [ "$FREE_KB" -lt "$MIN_FREE_KB" ]; then
+    FREE_HUMAN=$(df -h . | awk 'NR==2 {print $4}')
+    echo -e "${RED}❌ Insufficient disk space: ${FREE_HUMAN} free (minimum 1GB required).${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✅ Disk space check passed${NC}"
+echo ""
+
+# Guard: fail if placeholder YOUR_DOMAIN still present in deploy.sh or nginx config
+echo "🔍 Checking for unconfigured placeholders..."
+PLACEHOLDER_FILES=()
+if grep -q "YOUR_DOMAIN" deploy.sh 2>/dev/null; then
+    PLACEHOLDER_FILES+=("deploy.sh")
+fi
+if grep -rq "YOUR_DOMAIN" nginx/sites-available/ 2>/dev/null; then
+    PLACEHOLDER_FILES+=("nginx/sites-available/")
+fi
+if [ ${#PLACEHOLDER_FILES[@]} -gt 0 ]; then
+    echo -e "${RED}❌ Found unconfigured placeholder 'YOUR_DOMAIN' in:${NC}"
+    for f in "${PLACEHOLDER_FILES[@]}"; do
+        echo "   - $f"
+    done
+    echo "Replace 'YOUR_DOMAIN' with your actual domain before deploying."
+    exit 1
+fi
+echo -e "${GREEN}✅ No placeholder strings found${NC}"
+echo ""
+
 # Backup database if it exists
 if docker ps | grep -q wpp_disp_postgres; then
     echo "📦 Creating database backup before deployment..."
