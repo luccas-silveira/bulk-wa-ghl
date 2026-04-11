@@ -37,6 +37,8 @@ from src.logging_config import (
 from src.metrics import api_request_errors, api_request_latency, scheduler_jobs_gauge
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from src.config import CORS_ORIGINS, ENABLE_METRICS, GHL_ENABLED, DEBUG
+from apscheduler.triggers.interval import IntervalTrigger
+from sqlalchemy import text
 
 # Import GHL API routers
 from src.api.ghl_locations import router as ghl_locations_router
@@ -52,7 +54,6 @@ setup_logging()
 # Initialize Campaign Scheduler (before lifespan to ensure it's available)
 scheduler = CampaignScheduler()
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown logic."""
@@ -63,6 +64,16 @@ async def lifespan(app: FastAPI):
         )
     scheduler.start()
     logger.info("Application started with Campaign Scheduler")
+
+    # GHL-10: ensure cleanup job is registered (replace_existing=True is idempotent)
+    scheduler.scheduler.add_job(
+        _cleanup_old_webhooks,
+        trigger=IntervalTrigger(days=1),
+        id="cleanup_old_webhooks",
+        replace_existing=True,
+    )
+    logger.info("Registered webhook cleanup job (runs every 24h)")
+
     yield
     scheduler.shutdown()
     logger.info("Application shutdown complete")
@@ -76,6 +87,38 @@ app = FastAPI(
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def _cleanup_old_webhooks():
+    """Delete processed_webhooks older than 30 days (GHL-10)."""
+    db_session = SessionLocal()
+    try:
+        result = db_session.execute(
+            text(
+                "DELETE FROM processed_webhooks "
+                "WHERE processed_at < now() - interval '30 days'"
+            )
+        )
+        db_session.commit()
+        logger.info(
+            f"Cleaned up {result.rowcount} old processed webhooks"
+        )
+    except Exception as e:
+        logger.error(
+            f"Webhook cleanup job failed: {e}", exc_info=True
+        )
+        db_session.rollback()
+    finally:
+        db_session.close()
+
+
+# GHL-10: pre-register cleanup job so it is visible to get_jobs() before lifespan runs
+scheduler.scheduler.add_job(
+    _cleanup_old_webhooks,
+    trigger=IntervalTrigger(days=1),
+    id="cleanup_old_webhooks",
+    replace_existing=True,
+)
 
 metrics_enabled = ENABLE_METRICS
 app.add_middleware(
@@ -161,7 +204,6 @@ async def health_check(db: Session = Depends(get_db)):
     """
     try:
         # Test database connection
-        from sqlalchemy import text
         db.execute(text("SELECT 1"))
         db_status = "connected"
     except Exception as e:
@@ -222,6 +264,31 @@ async def create_campaign(
     scheduled_time = campaign_data.scheduled_time
     messages = [m.model_dump() for m in campaign_data.messages]
     csv_data = [c.model_dump() for c in campaign_data.audience_criteria.csv_data]
+
+    # WAHA-12: validate ghl_location_id exists
+    from src.models.ghl_location import GHLLocation
+    location = db.query(GHLLocation).filter_by(ghl_location_id=ghl_location_id).first()
+    if not location:
+        return JSONResponse(
+            status_code=422,
+            content={"detail": f"GHL location '{ghl_location_id}' not found. Register the location first."}
+        )
+
+    # GHL-22: validate each ghl_user_id exists in ghl_users
+    from src.models.ghl_user import GHLUser
+    user_ids_to_validate = ghl_user_ids or ([ghl_user_id] if ghl_user_id else [])
+    if not user_ids_to_validate:
+        return JSONResponse(
+            status_code=422,
+            content={"detail": "At least one GHL user ID must be provided (ghl_user_ids or ghl_user_id)."}
+        )
+    for uid in user_ids_to_validate:
+        user = db.query(GHLUser).filter_by(ghl_user_id=uid).first()
+        if not user:
+            return JSONResponse(
+                status_code=422,
+                content={"detail": f"GHL user '{uid}' not found in ghl_users table."}
+            )
 
     logger.info(f"Campaign data: schedule_type={schedule_type}, contacts={len(csv_data)}, messages={len(messages)}")
 
