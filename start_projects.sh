@@ -17,7 +17,7 @@ fi
 # Ativar virtual environment e instalar dependências
 echo "Ativando virtual environment e instalando dependências..."
 source venv/bin/activate
-pip install fastapi uvicorn httpx httpcore anyio pydantic sqlalchemy psycopg2-binary alembic python-multipart
+pip install -r requirements.txt
 
 # Iniciar backend
 echo "Iniciando servidor backend..."

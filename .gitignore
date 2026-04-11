@@ -62,7 +62,7 @@ logs/
 nginx/logs/*.log
 
 # Docker
-.dockerignore
+# Note: .dockerignore files are intentionally tracked (removed from here)
 
 # SSL Certificates
 nginx/ssl/*.pem

@@ -93,10 +93,58 @@ fi
 echo -e "${GREEN}✅ Pre-deployment checks passed${NC}"
 echo ""
 
-# Backup database if it exists
+# Guard: ensure we are on the correct branch before pulling
+echo "🔍 Checking git branch..."
+CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "")
+EXPECTED_BRANCH="main"
+if [ -n "$CURRENT_BRANCH" ] && [ "$CURRENT_BRANCH" != "$EXPECTED_BRANCH" ]; then
+    echo -e "${RED}❌ Current branch is '${CURRENT_BRANCH}', expected '${EXPECTED_BRANCH}'.${NC}"
+    echo "Switch to '${EXPECTED_BRANCH}' before deploying: git checkout ${EXPECTED_BRANCH}"
+    exit 1
+fi
+echo -e "${GREEN}✅ Branch check passed (${CURRENT_BRANCH:-detached HEAD})${NC}"
+echo ""
+
+# Guard: ensure at least 1GB of free disk space
+echo "🔍 Checking disk space..."
+FREE_KB=$(df -k . | awk 'NR==2 {print $4}')
+MIN_FREE_KB=$((1 * 1024 * 1024))  # 1 GB in KB
+if [ "$FREE_KB" -lt "$MIN_FREE_KB" ]; then
+    FREE_HUMAN=$(df -h . | awk 'NR==2 {print $4}')
+    echo -e "${RED}❌ Insufficient disk space: ${FREE_HUMAN} free (minimum 1GB required).${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✅ Disk space check passed${NC}"
+echo ""
+
+# Guard: fail if placeholder YOUR_DOMAIN still present in deploy.sh or nginx config
+echo "🔍 Checking for unconfigured placeholders..."
+PLACEHOLDER_FILES=()
+if grep -q "YOUR_DOMAIN" deploy.sh 2>/dev/null; then
+    PLACEHOLDER_FILES+=("deploy.sh")
+fi
+if grep -rq "YOUR_DOMAIN" nginx/sites-available/ 2>/dev/null; then
+    PLACEHOLDER_FILES+=("nginx/sites-available/")
+fi
+if [ ${#PLACEHOLDER_FILES[@]} -gt 0 ]; then
+    echo -e "${RED}❌ Found unconfigured placeholder 'YOUR_DOMAIN' in:${NC}"
+    for f in "${PLACEHOLDER_FILES[@]}"; do
+        echo "   - $f"
+    done
+    echo "Replace 'YOUR_DOMAIN' with your actual domain before deploying."
+    exit 1
+fi
+echo -e "${GREEN}✅ No placeholder strings found${NC}"
+echo ""
+
+# Backup database if it exists — abort if backup fails
 if docker ps | grep -q wpp_disp_postgres; then
     echo "📦 Creating database backup before deployment..."
-    ./scripts/backup-db.sh || echo "⚠️  Backup failed, continuing anyway..."
+    if ! ./scripts/backup-db.sh; then
+        echo -e "${RED}❌ Pre-deploy backup failed. Aborting deployment to protect data integrity.${NC}"
+        echo "Fix the backup script or resolve disk/permission issues before retrying."
+        exit 1
+    fi
     echo ""
 fi
 
@@ -124,6 +172,9 @@ echo "🔄 Running database migrations..."
 if ! ./scripts/migrate-db.sh; then
     echo ""
     echo -e "${RED}❌ Migration failed! Rolling back...${NC}"
+    echo "Running alembic downgrade -1 to revert last migration..."
+    docker exec wpp_disp_backend python -m alembic downgrade -1 2>/dev/null || \
+        echo -e "${YELLOW}⚠️  alembic downgrade -1 failed or no previous revision — check DB state manually.${NC}"
     docker-compose $COMPOSE_FILES down
     echo "Services stopped. Please fix the migration and redeploy."
     exit 1
