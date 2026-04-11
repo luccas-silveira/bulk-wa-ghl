@@ -2,8 +2,30 @@ import contextvars
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from typing import Any, Dict, Optional
+
+_PHONE_E164_RE = re.compile(r"\+\d{7,15}")
+
+
+class PhoneMaskFilter(logging.Filter):
+    """Mask E.164 phone numbers in log messages before emission."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str):
+            record.msg = _PHONE_E164_RE.sub("+***", record.msg)
+        # Also mask pre-formatted args strings if args were already applied
+        if record.args:
+            try:
+                formatted = record.getMessage()
+                masked = _PHONE_E164_RE.sub("+***", formatted)
+                record.msg = masked
+                record.args = ()
+            except Exception:
+                pass
+        return True
+
 
 request_id_ctx_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("request_id", default=None)
 campaign_id_ctx_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("campaign_id", default=None)
@@ -55,6 +77,7 @@ def setup_logging() -> None:
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
     handler.addFilter(RequestContextFilter())
+    handler.addFilter(PhoneMaskFilter())
 
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, log_level, logging.INFO))

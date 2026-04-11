@@ -11,9 +11,12 @@ from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 import asyncio
 import logging
+import hmac
 import os
 import time
 import uuid
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 # Import database
 from src.database import get_db, SessionLocal, engine
@@ -49,6 +52,8 @@ from src.api import campaign_management
 
 setup_logging()
 
+from src.limiter import limiter  # noqa: E402 — must be after setup_logging()
+
 # Initialize Campaign Scheduler (before lifespan to ensure it's available)
 scheduler = CampaignScheduler()
 
@@ -77,6 +82,20 @@ app = FastAPI(
 
 logger = logging.getLogger(__name__)
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Global fallback: log internally, return safe 500 to client."""
+    logger.exception("Unhandled exception", exc_info=exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
+
 metrics_enabled = ENABLE_METRICS
 app.add_middleware(
     CORSMiddleware,
@@ -103,7 +122,17 @@ app.include_router(campaign_management.router)
 # Observability middleware
 @app.middleware("http")
 async def add_request_context(request: Request, call_next):
-    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+    # Validate or generate X-Request-ID
+    client_request_id = request.headers.get("X-Request-ID")
+    if client_request_id:
+        try:
+            uuid.UUID(client_request_id)
+            request_id = client_request_id
+        except ValueError:
+            request_id = str(uuid.uuid4())
+    else:
+        request_id = str(uuid.uuid4())
+
     request_token = request_id_ctx_var.set(request_id)
     path_token = request_path_ctx_var.set(request.url.path)
     method_token = http_method_ctx_var.set(request.method)
@@ -113,13 +142,15 @@ async def add_request_context(request: Request, call_next):
 
     try:
         response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
         return response
     except Exception:
         api_request_errors.labels(method=request.method, path=request.url.path, status="500").inc()
         logger.exception("Unhandled exception during request")
         return JSONResponse(
             status_code=500,
-            content={"error": "Internal Server Error"}
+            content={"detail": "Internal server error"},
+            headers={"X-Request-ID": request_id},
         )
     finally:
         duration = time.perf_counter() - start_time
@@ -187,12 +218,15 @@ if metrics_enabled:
 
     @app.get("/metrics")
     async def metrics_endpoint(request: Request):
-        """Expose Prometheus metrics for scraping. Protected by optional METRICS_TOKEN."""
-        from src.config import METRICS_TOKEN
-        if METRICS_TOKEN:
+        """Expose Prometheus metrics for scraping. Protected by METRICS_TOKEN in production."""
+        from src.config import METRICS_TOKEN, DEBUG as _DEBUG
+        if not _DEBUG and METRICS_TOKEN:
             auth_header = request.headers.get("Authorization", "")
-            if auth_header != f"Bearer {METRICS_TOKEN}":
+            expected = f"Bearer {METRICS_TOKEN}"
+            if not hmac.compare_digest(auth_header, expected):
                 return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+        from src.metrics import update_pool_metrics
+        update_pool_metrics(engine)
         return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # ===== DASHBOARD API (NOW USES REAL DATA FROM ANALYTICS ROUTER) =====

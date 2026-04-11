@@ -2,6 +2,8 @@
 GHL Webhooks API Endpoints
 Handles incoming webhooks from GoHighLevel
 """
+import json
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
 from sqlalchemy.orm import Session
 from typing import Dict
@@ -10,6 +12,7 @@ from src.database import get_db
 from src.services.ghl_webhook_handler import GHLWebhookHandler
 
 router = APIRouter(prefix="/webhooks/ghl", tags=["GHL Webhooks"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/messages", status_code=status.HTTP_200_OK)
@@ -34,11 +37,25 @@ async def process_webhook(
         401: If signature validation fails
         400: If webhook processing fails
     """
+    client_ip = request.client.host if request.client else "unknown"
+
     # Get raw payload for signature validation
     raw_payload = await request.body()
 
-    # Validate signature
+    # Extract webhook_id from payload if possible (for logging before full parse)
+    webhook_id_for_log = None
+    try:
+        partial = json.loads(raw_payload)
+        webhook_id_for_log = partial.get("messageId") or partial.get("id")
+    except Exception:
+        pass
+
+    # Validate signature presence
     if not x_ghl_signature:
+        logger.warning(
+            "Webhook signature missing",
+            extra={"client_ip": client_ip, "webhook_id": webhook_id_for_log}
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing X-GHL-Signature header"
@@ -47,6 +64,9 @@ async def process_webhook(
     webhook_handler = GHLWebhookHandler(db)
 
     if not webhook_handler.validate_signature(raw_payload, x_ghl_signature):
+        logger.warning(
+            f"Webhook signature validation failed for webhook_id={webhook_id_for_log} client_ip={client_ip}"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid webhook signature"

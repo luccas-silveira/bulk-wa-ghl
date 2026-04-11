@@ -55,8 +55,8 @@ ENABLE_METRICS = os.getenv("ENABLE_METRICS", "true").lower() == "true"
 METRICS_TOKEN = os.getenv("METRICS_TOKEN", "")
 
 # Database pool
-DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "10"))
-DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "20"))
+DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "40"))
 
 # GHL API
 GHL_API_VERSION = os.getenv("GHL_API_VERSION", "2021-07-28")
