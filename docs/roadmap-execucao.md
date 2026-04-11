@@ -2,7 +2,7 @@
 
 **Propósito:** rastreamento operacional do [plano mestre](plano-implementacao-mestre.md).
 **Fonte da verdade descritiva:** `plano-implementacao-mestre.md` contém descrição detalhada de cada item (arquivo, linha, ação específica, critérios de conclusão). Este documento só rastreia status e serve como painel executável.
-**Última atualização:** 2026-04-11 (EPIC-04 concluído, EPIC-05 parcial + EPIC-06 concluídos)
+**Última atualização:** 2026-04-11 (EPIC-11 concluído — Fase 0 completa 41/41)
 **Branch ativa:** `004-campaign-management`
 
 ---
@@ -18,11 +18,11 @@
 
 | Fase | Objetivo | EPICs incluídos | Itens | Concluídos |
 |------|----------|-----------------|------:|-----------:|
-| **0** — Bloqueadores de produção | Sistema deployável, seguro, timezone correto, secrets validados, pool controlado, dashboard sem dados fake | EPIC-01, 02, 03, 04, 05 (críticos/altos), 06 (validadores), 11 (ANA-01/02/03) | 41 | 37 |
+| **0** — Bloqueadores de produção | Sistema deployável, seguro, timezone correto, secrets validados, pool controlado, dashboard sem dados fake | EPIC-01, 02, 03, 04, 05 (críticos/altos), 06 (validadores), 11 (ANA-01/02/03) | 41 | 41 |
 | **1** — Estabilidade e segurança | State machine, webhooks idempotentes, telefone E.164, router frontend, UI crítica, infra de deploy, observabilidade | EPIC-05 (resto), 06 (resto), 07, 08, 09, 12, 13 (críticos), 14 (críticos/altos), 15, 17 | 73 | 0 |
 | **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 0 |
 | **Fora de fase** | EPIC-18 Opção B (remoção WAHA) + RAIZ-09 (endpoint createCampaign) | EPIC-18, RAIZ-09 | 6 | 5 |
-| **Total** | | | **172** | **42** |
+| **Total** | | | **172** | **46** |
 
 **Notas sobre contagem:**
 - **Fase 3 (Polish e Backlog)** não aparece como linha separada: os itens de severidade Baixa que o plano mestre consolida em Fase 3 aqui ficam dentro de seus EPICs originais nas Fases 1 e 2, para evitar duplicação.
@@ -32,7 +32,7 @@
 
 ## Próximo passo recomendado
 
-**EPIC-11 — Analytics** (3 itens críticos de Fase 0, especialmente ANA-01 campo `timeline` no dashboard, ANA-02 padronização de status, ANA-03 denominador de taxa de entrega). EPIC-04 concluído.
+**Fase 0 concluída (41/41).** Próximo: iniciar Fase 1 — EPIC-05 PERS-25 (AsyncSession + asyncpg, PR separado, alto risco) ou EPICs de estabilidade de Fase 1.
 
 **PERS-25** (AsyncSession + asyncpg) está pendente do EPIC-05 — planejado em PR separado; impacto alto mas isolável.
 
@@ -130,12 +130,11 @@ Critérios de saída (plano mestre, linha 568):
 - [x] **CAMP-03** — `@model_validator` exigindo `scheduled_time` quando `schedule_type='scheduled'` em `schemas/campaign.py` (Baixo)
 
 ### EPIC-11 — Analytics (críticos de Fase 0)
-**Dependências:** EPIC-10 (idealmente) • **Itens:** 3 (dos 20 totais; 17 vão para Fase 2) • **Concluídos:** 0 • **Status:** Parcial (ANA-01 com hack)
+**Dependências:** EPIC-10 (idealmente) • **Itens:** 3 (dos 20 totais; 17 vão para Fase 2) • **Concluídos:** 3/3 • **Status:** ✅ Concluído 2026-04-11
 
-- [~] **ANA-01 / ANA-10** — Adicionar campo `timeline` no endpoint `/api/v1/analytics/dashboard`; frontend consome (Alto)
-  _Nota: `Dashboard.tsx:151-156` já calcula `chartData` a partir de `metrics.delivery_metrics` (dado real), mas `previousValue={... - 2.1}` (linha 199) ainda é fake e não há campo `timeline` no backend. Correção parcial com hacks; critério do plano não atendido._
-- [ ] **ANA-02** — Padronizar em `Message.status` como fonte única entre `analytics_service.py:94-97` e `campaign_management_service.py:71-75` (Médio)
-- [ ] **ANA-03** — Incluir `pending` no denominador do cálculo de delivery rate em `analytics_service.py:99-108` (Baixo)
+- [x] **ANA-01 / ANA-10** — Adicionar campo `timeline` no endpoint `/api/v1/analytics/dashboard`; frontend consome (Alto)
+- [x] **ANA-02** — Padronizar em `Message.status` como fonte única em `analytics_service.py` (Médio)
+- [x] **ANA-03** — Incluir `pending` no denominador do cálculo de delivery rate em `analytics_service.py` (Baixo)
 
 ---
 
