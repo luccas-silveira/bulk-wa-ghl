@@ -52,6 +52,41 @@ setup_logging()
 # Initialize Campaign Scheduler (before lifespan to ensure it's available)
 scheduler = CampaignScheduler()
 
+# GHL-10: pre-register cleanup job so it is visible to get_jobs() before lifespan runs
+from apscheduler.triggers.interval import IntervalTrigger as _IntervalTrigger
+from sqlalchemy import text as _sql_text
+
+
+async def _cleanup_old_webhooks():
+    """Delete processed_webhooks older than 30 days (GHL-10)."""
+    db_session = SessionLocal()
+    try:
+        result = db_session.execute(
+            _sql_text(
+                "DELETE FROM processed_webhooks "
+                "WHERE processed_at < now() - interval '30 days'"
+            )
+        )
+        db_session.commit()
+        logging.getLogger(__name__).info(
+            f"Cleaned up {result.rowcount} old processed webhooks"
+        )
+    except Exception as e:
+        logging.getLogger(__name__).error(
+            f"Webhook cleanup job failed: {e}", exc_info=True
+        )
+        db_session.rollback()
+    finally:
+        db_session.close()
+
+
+scheduler.scheduler.add_job(
+    _cleanup_old_webhooks,
+    trigger=_IntervalTrigger(days=1),
+    id="cleanup_old_webhooks",
+    replace_existing=True,
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -63,6 +98,16 @@ async def lifespan(app: FastAPI):
         )
     scheduler.start()
     logger.info("Application started with Campaign Scheduler")
+
+    # GHL-10: ensure cleanup job is registered (replace_existing=True is idempotent)
+    scheduler.scheduler.add_job(
+        _cleanup_old_webhooks,
+        trigger=_IntervalTrigger(days=1),
+        id="cleanup_old_webhooks",
+        replace_existing=True,
+    )
+    logger.info("Registered webhook cleanup job (runs every 24h)")
+
     yield
     scheduler.shutdown()
     logger.info("Application shutdown complete")
