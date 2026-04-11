@@ -2,6 +2,12 @@
 GHL OAuth API Endpoints
 Handles OAuth 2.0 authorization flow with GoHighLevel
 """
+import secrets
+import hmac as _hmac
+import hashlib
+import time
+import json
+import base64
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -10,6 +16,38 @@ from pydantic import BaseModel
 from src.database import get_db
 from src.services.ghl_oauth_service import GHLOAuthService
 from src.models.ghl_location import GHLLocation
+from src.config import GHL_CLIENT_SECRET
+
+_STATE_TTL_SECONDS = 300  # 5 minutos
+
+
+def _generate_oauth_state() -> str:
+    """Generate a signed, time-limited CSRF state token (stateless, no DB required)."""
+    payload = json.dumps({
+        "nonce": secrets.token_urlsafe(16),
+        "exp": int(time.time()) + _STATE_TTL_SECONDS,
+    })
+    payload_b64 = base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+    sig = _hmac.new(GHL_CLIENT_SECRET.encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
+    return f"{payload_b64}.{sig}"
+
+
+def _verify_oauth_state(state) -> bool:
+    """Verify state signature and expiration. Returns True only if valid."""
+    if not state:
+        return False
+    try:
+        payload_b64, sig = state.rsplit(".", 1)
+        expected = _hmac.new(GHL_CLIENT_SECRET.encode(), payload_b64.encode(), hashlib.sha256).hexdigest()
+        if not _hmac.compare_digest(sig, expected):
+            return False
+        # Add padding back for urlsafe_b64decode
+        padding = "=" * (4 - len(payload_b64) % 4) if len(payload_b64) % 4 else ""
+        payload = json.loads(base64.urlsafe_b64decode((payload_b64 + padding).encode()).decode())
+        return int(payload["exp"]) > int(time.time())
+    except Exception:
+        return False
+
 
 router = APIRouter(prefix="/ghl/oauth", tags=["GHL OAuth"])
 
@@ -21,48 +59,24 @@ class OAuthCallbackRequest(BaseModel):
 
 
 @router.get("/authorize")
-async def oauth_authorize(
-    state: str | None = Query(None, description="Optional state parameter for CSRF protection"),
-    db: Session = Depends(get_db)
-):
-    """
-    Initiate OAuth authorization flow
-
-    Redirects user to GHL authorization page
-
-    Query Parameters:
-    - state: Optional CSRF protection token
-
-    Returns:
-        Redirect to GHL authorization URL
-    """
+async def oauth_authorize(db: Session = Depends(get_db)):
+    """Initiate OAuth authorization flow. Generates CSRF state server-side."""
+    state = _generate_oauth_state()
     oauth_service = GHLOAuthService(db)
     auth_url = oauth_service.get_authorization_url(state=state)
-
     return RedirectResponse(url=auth_url)
 
 
 @router.post("/callback")
 async def oauth_callback(
     code: str = Query(..., description="Authorization code from GHL"),
-    state: str | None = Query(None, description="State parameter"),
+    state: str | None = Query(None, description="CSRF state parameter"),
     db: Session = Depends(get_db)
 ):
-    """
-    Handle OAuth callback from GHL
+    """Handle OAuth callback. Validates CSRF state before processing."""
+    if not state or not _verify_oauth_state(state):
+        raise HTTPException(status_code=400, detail="Invalid or missing CSRF state parameter")
 
-    Exchanges authorization code for access token and stores it
-
-    Query Parameters:
-    - code: Authorization code from GHL
-    - state: Optional state parameter
-
-    Returns:
-        Success message with location details
-
-    Raises:
-        400: If token exchange fails
-    """
     oauth_service = GHLOAuthService(db)
 
     try:
