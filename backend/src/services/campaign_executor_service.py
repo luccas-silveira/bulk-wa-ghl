@@ -77,7 +77,13 @@ class CampaignExecutorService:
         self.db.commit()
 
         # Get sending delay based on speed
-        delay = self.SPEED_DELAYS.get(campaign.sending_speed, 2.0)
+        delay = self.SPEED_DELAYS.get(campaign.sending_speed)
+        if delay is None:
+            logger.warning(
+                f"Unknown sending_speed '{campaign.sending_speed}' for campaign {campaign_id}, "
+                "defaulting to 2s delay"
+            )
+            delay = 2.0
 
         # Get list of users for round-robin distribution
         user_ids = campaign.get_user_ids_list()
@@ -230,37 +236,34 @@ class CampaignExecutorService:
         Returns:
             Dictionary with campaign status and statistics
         """
+        from sqlalchemy import func
+
         campaign = self.db.query(Campaign).filter(Campaign.id == campaign_id).first()
         if not campaign:
             raise ValueError(f"Campaign {campaign_id} not found")
 
-        # Get message statistics
-        messages = self.db.query(Message).filter(Message.campaign_id == campaign_id).all()
+        agg_rows = (
+            self.db.query(Message.status, func.count(Message.id).label("cnt"))
+            .filter(Message.campaign_id == campaign_id)
+            .group_by(Message.status)
+            .all()
+        )
 
-        status_counts = {
-            'pending': 0,
-            'sent': 0,
-            'delivered': 0,
-            'read': 0,
-            'failed': 0
-        }
-
-        for msg in messages:
-            status = msg.status
+        status_counts = {"pending": 0, "sent": 0, "delivered": 0, "read": 0, "failed": 0}
+        total = 0
+        for status, cnt in agg_rows:
             if status in status_counts:
-                status_counts[status] += 1
+                status_counts[status] = cnt
+            total += cnt
 
         return {
-            'campaign_id': campaign_id,
-            'name': campaign.name,
-            'status': campaign.status,
-            'ghl_location_id': campaign.ghl_location_id,
-            'sending_speed': campaign.sending_speed,
-            'created_at': campaign.created_at.isoformat() if campaign.created_at else None,
-            'messages': {
-                'total': len(messages),
-                'by_status': status_counts
-            }
+            "campaign_id": campaign_id,
+            "name": campaign.name,
+            "status": campaign.status,
+            "ghl_location_id": campaign.ghl_location_id,
+            "sending_speed": campaign.sending_speed,
+            "created_at": campaign.created_at.isoformat() if campaign.created_at else None,
+            "messages": {"total": total, "by_status": status_counts},
         }
 
     async def get_campaign_messages(
