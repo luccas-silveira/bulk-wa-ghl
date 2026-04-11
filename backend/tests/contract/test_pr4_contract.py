@@ -163,3 +163,61 @@ class TestRateLimiting:
         """Request dentro do limite deve passar normalmente."""
         response = await async_client.get("/api/v1/campaigns")
         assert response.status_code in (200, 422, 500)  # Not 429
+
+
+# ---------------------------------------------------------------------------
+# Task 9: GHL-26 — Webhook signature failure logging
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestWebhookSignatureLogging:
+    """GHL-26: falhas de assinatura de webhook devem ser logadas como warning."""
+
+    async def test_invalid_signature_logs_warning(self, async_client: AsyncClient):
+        """Assinatura inválida deve gerar logger.warning com IP e webhook_id antes do 401."""
+        import logging
+        with patch("src.api.ghl_webhooks.logger") as mock_logger:
+            response = await async_client.post(
+                "/webhooks/ghl/messages",
+                json={"type": "MessageDelivered", "messageId": "msg_test_001"},
+                headers={"X-GHL-Signature": "bad_signature"}
+            )
+
+        assert response.status_code == 401
+        # logger.warning deve ter sido chamado
+        mock_logger.warning.assert_called_once()
+        warning_call_args = str(mock_logger.warning.call_args)
+        # Deve incluir o webhook_id (messageId) ou indicar que não havia
+        assert "msg_test_001" in warning_call_args or "webhook_id" in warning_call_args.lower()
+
+    async def test_missing_signature_logs_warning(self, async_client: AsyncClient):
+        """Header ausente deve também gerar logger.warning antes do 401."""
+        with patch("src.api.ghl_webhooks.logger") as mock_logger:
+            response = await async_client.post(
+                "/webhooks/ghl/messages",
+                json={"type": "MessageDelivered", "messageId": "msg_no_sig_002"},
+            )
+
+        assert response.status_code == 401
+        mock_logger.warning.assert_called_once()
+
+    async def test_valid_signature_does_not_log_warning(self, async_client: AsyncClient):
+        """Assinatura válida NÃO deve gerar warning de falha."""
+        import json
+        import hmac as _hmac
+        import hashlib
+
+        payload = {"type": "MessageDelivered", "locationId": "loc_1", "messageId": "msg_valid_003"}
+        payload_bytes = json.dumps(payload).encode("utf-8")
+        sig = _hmac.new(b"test_webhook_secret", payload_bytes, hashlib.sha256).hexdigest()
+
+        with patch("src.api.ghl_webhooks.logger") as mock_logger:
+            response = await async_client.post(
+                "/webhooks/ghl/messages",
+                content=payload_bytes,
+                headers={"X-GHL-Signature": sig, "Content-Type": "application/json"}
+            )
+
+        # Check that warning was NOT called (regardless of final status)
+        mock_logger.warning.assert_not_called()
