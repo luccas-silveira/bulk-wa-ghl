@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from src.config import GHL_WEBHOOK_SECRET
 from src.models.processed_webhook import ProcessedWebhook
-from src.models.message import Message
+from src.models.message import Message, STATUS_ORDER
 from src.models.ghl_conversation import GHLConversation
 
 
@@ -140,15 +140,14 @@ class GHLWebhookHandler:
         ).first()
 
         if message:
-            # Update message status
-            message.status = "delivered"
-            message.ghl_status = "delivered"
-            message.delivered_at = datetime.now(timezone.utc)
-            self.db.commit()
-
+            if STATUS_ORDER.get('delivered', 0) > STATUS_ORDER.get(message.status, 0):
+                message.status = 'delivered'
+                message.ghl_status = 'delivered'
+                message.delivered_at = datetime.now(timezone.utc)
+                self.db.commit()
             return {
                 "message_id": message.id,
-                "status_updated": "delivered"
+                "status_updated": "delivered" if message.status == 'delivered' else "skipped_no_regression"
             }
 
         return {"message_id": message_id, "status": "not_found"}
@@ -170,14 +169,14 @@ class GHLWebhookHandler:
         ).first()
 
         if message:
-            message.status = "read"
-            message.ghl_status = "read"
-            message.read_at = datetime.now(timezone.utc)
-            self.db.commit()
-
+            if STATUS_ORDER.get('read', 0) > STATUS_ORDER.get(message.status, 0):
+                message.status = 'read'
+                message.ghl_status = 'read'
+                message.read_at = datetime.now(timezone.utc)
+                self.db.commit()
             return {
                 "message_id": message.id,
-                "status_updated": "read"
+                "status_updated": "read" if message.status == 'read' else "skipped_no_regression"
             }
 
         return {"message_id": message_id, "status": "not_found"}

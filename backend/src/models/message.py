@@ -4,7 +4,7 @@ Represents a WhatsApp message sent through a campaign
 """
 from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, Index
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 from src.database import Base
 
 
@@ -68,6 +68,24 @@ class Message(Base):
         Index('idx_messages_ghl_status', 'ghl_status'),
     )
 
+    VALID_STATUSES: set = {'pending', 'sent', 'delivered', 'read', 'failed'}
+
+    STATUS_ORDER: dict = {
+        'pending':   0,
+        'sent':      1,
+        'delivered': 2,
+        'read':      3,
+        'failed':    -1,  # applied independently of order
+    }
+
+    @validates('status')
+    def validate_status(self, key: str, value: str) -> str:
+        if value not in self.VALID_STATUSES:
+            raise ValueError(
+                f"Invalid message status: '{value}'. Must be one of {sorted(self.VALID_STATUSES)}"
+            )
+        return value
+
     def __repr__(self):
         return (f"<Message(id={self.id}, campaign_id={self.campaign_id}, recipient='{self.recipient_phone}', "
                 f"status='{self.status}', ghl_message_id='{self.ghl_message_id}')>")
@@ -91,3 +109,7 @@ class Message(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+
+# Module-level export for convenience
+STATUS_ORDER = Message.STATUS_ORDER
