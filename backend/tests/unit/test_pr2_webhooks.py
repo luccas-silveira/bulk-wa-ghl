@@ -95,7 +95,15 @@ class TestWebhookPayloadSchema:
         app.dependency_overrides[get_db] = lambda: db
         client = TestClient(app, raise_server_exceptions=False)
 
-        with patch("src.services.ghl_webhook_handler.GHLWebhookHandler.validate_signature", return_value=True):
+        with patch("src.api.ghl_webhooks.GHLWebhookHandler") as mock_handler_cls:
+            mock_handler = MagicMock()
+            mock_handler.validate_signature.return_value = True
+            from unittest.mock import AsyncMock
+            mock_handler.process_webhook = AsyncMock(
+                return_value={"status": "processed", "webhook_id": "wh_1"}
+            )
+            mock_handler_cls.return_value = mock_handler
+
             payload = json.dumps({
                 "type": "MessageDelivered",
                 # locationId missing

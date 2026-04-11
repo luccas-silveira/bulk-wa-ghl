@@ -4,7 +4,7 @@ Handles incoming webhooks from GoHighLevel
 """
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 from typing import Dict, Optional
 
@@ -96,10 +96,10 @@ async def process_webhook(
     # GHL-13: validate payload structure
     try:
         WebhookPayload.model_validate(payload)
-    except Exception as e:
+    except ValidationError:
         raise HTTPException(
             status_code=422,
-            detail=f"Invalid webhook payload: {e}"
+            detail="Invalid webhook payload: missing required fields"
         )
 
     # Extract event type

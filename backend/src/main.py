@@ -37,6 +37,8 @@ from src.logging_config import (
 from src.metrics import api_request_errors, api_request_latency, scheduler_jobs_gauge
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from src.config import CORS_ORIGINS, ENABLE_METRICS, GHL_ENABLED, DEBUG
+from apscheduler.triggers.interval import IntervalTrigger
+from sqlalchemy import text
 
 # Import GHL API routers
 from src.api.ghl_locations import router as ghl_locations_router
@@ -52,42 +54,6 @@ setup_logging()
 # Initialize Campaign Scheduler (before lifespan to ensure it's available)
 scheduler = CampaignScheduler()
 
-# GHL-10: pre-register cleanup job so it is visible to get_jobs() before lifespan runs
-from apscheduler.triggers.interval import IntervalTrigger as _IntervalTrigger
-from sqlalchemy import text as _sql_text
-
-
-async def _cleanup_old_webhooks():
-    """Delete processed_webhooks older than 30 days (GHL-10)."""
-    db_session = SessionLocal()
-    try:
-        result = db_session.execute(
-            _sql_text(
-                "DELETE FROM processed_webhooks "
-                "WHERE processed_at < now() - interval '30 days'"
-            )
-        )
-        db_session.commit()
-        logging.getLogger(__name__).info(
-            f"Cleaned up {result.rowcount} old processed webhooks"
-        )
-    except Exception as e:
-        logging.getLogger(__name__).error(
-            f"Webhook cleanup job failed: {e}", exc_info=True
-        )
-        db_session.rollback()
-    finally:
-        db_session.close()
-
-
-scheduler.scheduler.add_job(
-    _cleanup_old_webhooks,
-    trigger=_IntervalTrigger(days=1),
-    id="cleanup_old_webhooks",
-    replace_existing=True,
-)
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: startup and shutdown logic."""
@@ -102,7 +68,7 @@ async def lifespan(app: FastAPI):
     # GHL-10: ensure cleanup job is registered (replace_existing=True is idempotent)
     scheduler.scheduler.add_job(
         _cleanup_old_webhooks,
-        trigger=_IntervalTrigger(days=1),
+        trigger=IntervalTrigger(days=1),
         id="cleanup_old_webhooks",
         replace_existing=True,
     )
@@ -121,6 +87,38 @@ app = FastAPI(
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def _cleanup_old_webhooks():
+    """Delete processed_webhooks older than 30 days (GHL-10)."""
+    db_session = SessionLocal()
+    try:
+        result = db_session.execute(
+            text(
+                "DELETE FROM processed_webhooks "
+                "WHERE processed_at < now() - interval '30 days'"
+            )
+        )
+        db_session.commit()
+        logger.info(
+            f"Cleaned up {result.rowcount} old processed webhooks"
+        )
+    except Exception as e:
+        logger.error(
+            f"Webhook cleanup job failed: {e}", exc_info=True
+        )
+        db_session.rollback()
+    finally:
+        db_session.close()
+
+
+# GHL-10: pre-register cleanup job so it is visible to get_jobs() before lifespan runs
+scheduler.scheduler.add_job(
+    _cleanup_old_webhooks,
+    trigger=IntervalTrigger(days=1),
+    id="cleanup_old_webhooks",
+    replace_existing=True,
+)
 
 metrics_enabled = ENABLE_METRICS
 app.add_middleware(
@@ -206,7 +204,6 @@ async def health_check(db: Session = Depends(get_db)):
     """
     try:
         # Test database connection
-        from sqlalchemy import text
         db.execute(text("SELECT 1"))
         db_status = "connected"
     except Exception as e:
