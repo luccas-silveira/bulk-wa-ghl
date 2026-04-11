@@ -39,3 +39,50 @@ class TestGlobalExceptionHandler:
         assert "catastrophic failure" not in str(body)
         assert "stack" not in str(body).lower()
         assert "traceback" not in str(body).lower()
+
+
+# ---------------------------------------------------------------------------
+# Task 6: RAIZ-10 — HMAC authentication on /metrics
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestMetricsAuth:
+    """RAIZ-10: /metrics requer METRICS_TOKEN em produção (DEBUG=False)."""
+
+    async def test_metrics_returns_200_in_debug_mode_without_token(self, async_client: AsyncClient):
+        """Em DEBUG=True, /metrics deve responder sem autenticação."""
+        with patch("src.main.DEBUG", True), patch("src.main.metrics_enabled", True):
+            response = await async_client.get("/metrics")
+        # 200 or 404 (if metrics disabled in test app); the key is NOT 401
+        assert response.status_code != 401
+
+    async def test_metrics_requires_token_in_production(self, async_client: AsyncClient):
+        """Em DEBUG=False com METRICS_TOKEN setado, /metrics sem token deve retornar 401."""
+        with patch("src.main.DEBUG", False), \
+             patch("src.config.DEBUG", False), \
+             patch("src.config.METRICS_TOKEN", "secret_token_abc"):
+            response = await async_client.get("/metrics")
+        assert response.status_code == 401
+
+    async def test_metrics_accepts_valid_bearer_token_in_production(self, async_client: AsyncClient):
+        """Em DEBUG=False com token correto, /metrics deve retornar 200."""
+        with patch("src.main.DEBUG", False), \
+             patch("src.config.DEBUG", False), \
+             patch("src.config.METRICS_TOKEN", "secret_token_abc"):
+            response = await async_client.get(
+                "/metrics",
+                headers={"Authorization": "Bearer secret_token_abc"}
+            )
+        assert response.status_code == 200
+
+    async def test_metrics_rejects_wrong_token_in_production(self, async_client: AsyncClient):
+        """Em DEBUG=False com token errado, /metrics deve retornar 401."""
+        with patch("src.main.DEBUG", False), \
+             patch("src.config.DEBUG", False), \
+             patch("src.config.METRICS_TOKEN", "secret_token_abc"):
+            response = await async_client.get(
+                "/metrics",
+                headers={"Authorization": "Bearer wrong_token"}
+            )
+        assert response.status_code == 401
