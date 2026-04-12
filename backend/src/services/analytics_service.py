@@ -22,10 +22,10 @@ async def get_campaign_metrics(
     stmt = (
         select(Campaign.status, func.count(Campaign.id).label("cnt"))
         .where(Campaign.created_at >= date_threshold)
-        .group_by(Campaign.status)
     )
     if ghl_user_id:
         stmt = stmt.where(Campaign.ghl_user_id == ghl_user_id)
+    stmt = stmt.group_by(Campaign.status)
 
     rows = (await db.execute(stmt)).all()
     counts = {row.status: row.cnt for row in rows}
