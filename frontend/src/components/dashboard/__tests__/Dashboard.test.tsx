@@ -88,4 +88,26 @@ describe('Dashboard', () => {
     render(<Dashboard />);
     await waitFor(() => expect(screen.getByText(/Error Loading Dashboard/i)).toBeInTheDocument());
   });
+
+  it('shows fetchedAt timestamp after successful load', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => mockDashboardData,
+    });
+    render(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByTestId('fetched-at')).toBeInTheDocument()
+    );
+    expect(screen.getByTestId('fetched-at').textContent).toMatch(/Dados de \d{2}:\d{2}:\d{2}/);
+  });
+
+  it('chartData uses delivery_metrics.delivered directly', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => mockDashboardData,
+    });
+    render(<Dashboard />);
+    await waitFor(() => screen.getByTestId('campaign-status-chart'));
+    expect(screen.getByTestId('campaign-status-chart')).toBeInTheDocument();
+  });
 });

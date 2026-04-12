@@ -23,6 +23,7 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
   const [error, setError] = useState<string | null>(null);
   const [userFilter, setUserFilter] = useState<string>(defaultUserId || '');
   const [timeRange, setTimeRange] = useState<number>(30);
+  const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   // Fetch dashboard data
@@ -30,6 +31,7 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    setFetchedAt(null);
     setLoading(true);
     setError(null);
 
@@ -63,6 +65,7 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
 
       // Set the metrics directly from the API response
       setMetrics(data);
+      setFetchedAt(new Date());
     } catch (err) {
       // Show error state when API call fails
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
@@ -78,9 +81,9 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
     return {
       campaignStatus: {
         sent: metrics.delivery_metrics.sent,
-        delivered: metrics.delivery_metrics.delivered,
+        delivered: metrics.delivery_metrics.delivered,  // direct field — ANA-11
         read: Math.floor(metrics.delivery_metrics.sent * (metrics.delivery_metrics.read_rate / 100)),
-        failed: metrics.delivery_metrics.failed,
+        failed: metrics.delivery_metrics.failed,  // direct field — ANA-11
       },
       deliveryRate: {
         labels: metrics.timeline?.labels ?? [],
@@ -184,6 +187,15 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
   return (
     <div className="w-full space-y-6">
       <MessagingKpiPanel />
+
+      {fetchedAt && (
+        <p
+          className="text-xs text-gray-400 text-right"
+          data-testid="fetched-at"
+        >
+          Dados de {fetchedAt.toLocaleTimeString('pt-BR')}
+        </p>
+      )}
 
       {/* Key Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
