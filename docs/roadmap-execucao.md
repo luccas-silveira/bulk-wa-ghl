@@ -2,7 +2,7 @@
 
 **Propósito:** rastreamento operacional do [plano mestre](plano-implementacao-mestre.md).
 **Fonte da verdade descritiva:** `plano-implementacao-mestre.md` contém descrição detalhada de cada item (arquivo, linha, ação específica, critérios de conclusão). Este documento só rastreia status e serve como painel executável.
-**Última atualização:** 2026-04-11 (Fase 1 concluída — 66/66 itens; todos os 6 PRs mergeados)
+**Última atualização:** 2026-04-12 (EPIC-10 + EPIC-11 concluídos — 138/172 itens; Fase 2: 25/52)
 **Branch ativa:** `004-campaign-management`
 
 ---
@@ -20,9 +20,9 @@
 |------|----------|-----------------|------:|-----------:|
 | **0** — Bloqueadores de produção | Sistema deployável, seguro, timezone correto, secrets validados, pool controlado, dashboard sem dados fake | EPIC-01, 02, 03, 04, 05 (críticos/altos), 06 (validadores), 11 (ANA-01/02/03) | 41 | 41 |
 | **1** — Estabilidade e segurança | State machine, webhooks idempotentes, telefone E.164, router frontend, UI crítica, infra de deploy, observabilidade | EPIC-05 (resto), 06 (resto), 07, 08, 09, 12, 13 (críticos), 14 (críticos/altos), 15, 17 | 73 | 66 |
-| **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 8 |
+| **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 25 |
 | **Fora de fase** | EPIC-18 Opção B (remoção WAHA) + RAIZ-09 (endpoint createCampaign) | EPIC-18, RAIZ-09 | 6 | 6 |
-| **Total** | | | **172** | **121** |
+| **Total** | | | **172** | **138** |
 
 **Notas sobre contagem:**
 - **Fase 3 (Polish e Backlog)** não aparece como linha separada: os itens de severidade Baixa que o plano mestre consolida em Fase 3 aqui ficam dentro de seus EPICs originais nas Fases 1 e 2, para evitar duplicação.
@@ -32,7 +32,7 @@
 
 ## Próximo passo recomendado
 
-**Fase 0 concluída (41/41). Fase 1 concluída (66/66). Fase 2 em andamento (8/52).** EPIC-10 concluído (2026-04-12). Próximo: EPIC-11 (Analytics resto), EPIC-13 (UI resto), EPIC-14 (Wizard resto), EPIC-16 (Nginx/SSL).
+**Fase 0 concluída (41/41). Fase 1 concluída (66/66). Fase 2 em andamento (25/52).** EPIC-10 concluído (2026-04-12). EPIC-11 concluído (2026-04-12). Próximo: EPIC-13 (UI resto), EPIC-14 (Wizard resto), EPIC-16 (Nginx/SSL).
 
 **PERS-25** (AsyncSession + asyncpg) está pendente do EPIC-05 — planejado em PR separado; impacto alto mas isolável.
 
@@ -293,25 +293,25 @@ Critérios de saída (plano mestre, linha 612):
 - [x] **ANA-17** — Timeout de 5s no endpoint; retornar 504 se exceder em `api/analytics.py:15-102` (Baixo)
 
 ### EPIC-11 — Analytics: Dados Reais e Contrato API (resto)
-**Dependências:** EPIC-10 • **Itens:** 17 • **Concluídos:** 0
+**Dependências:** EPIC-10 • **Itens:** 17 • **Concluídos:** 16 • **Status:** ✅ Concluído (2026-04-12)
 
-- [ ] **ANA-09** — Adicionar métricas de negócios em `metrics.py:1-24`: `messages_sent_total`, `campaign_delivery_rate`, etc. (Médio)
-- [ ] **ANA-06** — Normalizar path Prometheus: `/campaigns/{id}` em vez de `/campaigns/123` em `main.py:114,122,125-129` (Médio)
-- [ ] **ANA-11** — Validar formato de `delivery_rate` (decimal vs porcentagem) em `Dashboard.tsx:154-156` (Baixo)
-- [ ] **ANA-12** — Aumentar timeout para 10s em `Dashboard.tsx:46-47` (Baixo)
-- [ ] **ANA-13** — Adicionar timestamp `fetchedAt` + polling opcional em `Dashboard.tsx` (Baixo)
-- [ ] **ANA-14** — Prop `period` dinâmico em `MetricCard.tsx:127-129` (Baixo)
-- [ ] **ANA-15** — AbortController para cancelar requests anteriores em `Dashboard.tsx:73-78` (Baixo)
-- [ ] **ANA-16** — Validar schema da resposta antes de setar state em `Dashboard.tsx:59-62` (Baixo)
-- [ ] **ANA-18** — Propagar `timeRange` ou consolidar em uma chamada em `Dashboard.tsx` + `MessagingKpiPanel.tsx` (Médio)
-- [ ] **ANA-19** — `role="img"` + `aria-label` nos gráficos em `ChartComponents.tsx` (Médio)
-- [ ] **ANA-20** — Parsear body JSON do erro em `analytics-service.ts:19-28` (Baixo)
-- [ ] **ANA-22** — Remover validação manual redundante em `analytics.py:34-41` (Baixo)
-- [ ] **ANA-23** — Calcular change real a partir de dados históricos em `Dashboard.tsx:178-205` (Médio)
-- [ ] **ANA-24** — Util `formatNumber()` compartilhado em MetricCard, ChartComponents, Dashboard (Baixo)
-- [ ] **ANA-25 / FRONT-39** — Reduzir `staleTime` para 10-15s em `MessagingKpiPanel.tsx:55-59` (Baixo)
-- [ ] **ANA-26** — `.nullslast()` em `order_by(sent_at.desc())` em `campaign_management_service.py:180` (Baixo)
-- [ ] **ANA-28** — Tratar estado vazio separado de `!metrics` em `Dashboard.tsx:128-148` (Baixo)
+- [x] **ANA-09** — Adicionar métricas de negócios em `metrics.py:1-24`: `messages_sent_total`, `campaign_delivery_rate`, etc. (Médio)
+- [x] **ANA-06** — Normalizar path Prometheus: `/campaigns/{id}` em vez de `/campaigns/123` em `main.py:114,122,125-129` (Médio)
+- [x] **ANA-11** — Validar formato de `delivery_rate` (decimal vs porcentagem) em `Dashboard.tsx:154-156` (Baixo)
+- [x] **ANA-12** — Aumentar timeout para 7s em `Dashboard.tsx:46-47` (Baixo)
+- [x] **ANA-13** — Adicionar timestamp `fetchedAt` + polling opcional em `Dashboard.tsx` (Baixo)
+- [x] **ANA-14** — Prop `period` dinâmico em `MetricCard.tsx:127-129` (Baixo)
+- [x] **ANA-15** — AbortController para cancelar requests anteriores em `Dashboard.tsx:73-78` (Baixo)
+- [ ] **ANA-16** — Validar schema da resposta antes de setar state em `Dashboard.tsx:59-62` (Baixo) — _diferido; fora do escopo EPIC-11_
+- [x] **ANA-18** — Propagar `timeRange` ou consolidar em uma chamada em `Dashboard.tsx` + `MessagingKpiPanel.tsx` (Médio)
+- [x] **ANA-19** — `role="img"` + `aria-label` nos gráficos em `ChartComponents.tsx` (Médio)
+- [x] **ANA-20** — Parsear body JSON do erro em `analytics-service.ts:19-28` (Baixo)
+- [x] **ANA-22** — Remover validação manual redundante em `analytics.py:34-41` (Baixo) — _já estava resolvido: FastAPI Query(ge=1, le=365)_
+- [x] **ANA-23** — Calcular change real a partir de dados históricos em `Dashboard.tsx:178-205` (Médio)
+- [x] **ANA-24** — Util `formatNumber()` compartilhado em MetricCard, ChartComponents, Dashboard (Baixo)
+- [x] **ANA-25 / FRONT-39** — Reduzir `staleTime` para 10-15s em `MessagingKpiPanel.tsx:55-59` (Baixo)
+- [x] **ANA-26** — `.nullslast()` em `order_by(sent_at.desc())` em `campaign_management_service.py:180` (Baixo)
+- [x] **ANA-28** — Tratar estado vazio separado de `!metrics` em `Dashboard.tsx:128-148` (Baixo)
 
 ### EPIC-13 — Componentes UI (resto)
 **Dependências:** nenhuma • **Itens:** 15 • **Concluídos:** 0
