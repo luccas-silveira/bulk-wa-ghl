@@ -104,9 +104,10 @@ describe('CampaignList — FRONT-30: optimistic updates', () => {
     renderList();
     await waitFor(() => screen.getByText('Campanha Beta'));
 
-    // Click Delete → confirm dialog → click Confirm
+    // Click Delete → name confirmation input appears → type campaign name → click Excluir
     await userEvent.click(screen.getByTitle('Delete campaign'));
-    await userEvent.click(screen.getByText('Confirm'));
+    await userEvent.type(screen.getByTestId('delete-name-input'), 'Campanha Beta');
+    await userEvent.click(screen.getByTestId('delete-confirm-btn'));
 
     // Campaign disappears immediately (optimistic)
     await waitFor(() =>
