@@ -7,7 +7,8 @@ import logging
 import httpx
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
@@ -34,7 +35,7 @@ class GHLOAuthService:
     GHL_OAUTH_BASE_URL = "https://marketplace.gohighlevel.com/oauth"
     GHL_API_BASE_URL = "https://services.leadconnectorhq.com"
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         """
         Initialize OAuth service
 
@@ -158,9 +159,10 @@ class GHLOAuthService:
             ValueError: If refresh fails
         """
         # Get existing token from database
-        token_record = self.db.query(GHLOAuthToken).filter(
-            GHLOAuthToken.ghl_location_id == location_id
-        ).first()
+        result = await self.db.execute(
+            select(GHLOAuthToken).where(GHLOAuthToken.ghl_location_id == location_id)
+        )
+        token_record = result.scalar_one_or_none()
 
         if not token_record:
             raise ValueError(f"No OAuth token found for location {location_id}")
@@ -203,16 +205,19 @@ class GHLOAuthService:
         Raises:
             ValueError: If token cannot be retrieved or refreshed
         """
-        token_record = self.db.query(GHLOAuthToken).filter(
-            GHLOAuthToken.ghl_location_id == location_id
-        ).with_for_update().first()
+        result = await self.db.execute(
+            select(GHLOAuthToken).where(
+                GHLOAuthToken.ghl_location_id == location_id
+            ).with_for_update()
+        )
+        token_record = result.scalar_one_or_none()
 
         if not token_record:
             raise ValueError(f"No OAuth token found for location {location_id}")
 
         if token_record.is_expired():
             await self.refresh_token(location_id)
-            self.db.refresh(token_record)
+            await self.db.refresh(token_record)
 
         return self.encryption_service.decrypt(token_record.access_token_encrypted)
 
@@ -250,9 +255,10 @@ class GHLOAuthService:
                          if k not in ("access_token", "refresh_token")}
 
         # Check if token record exists
-        token_record = self.db.query(GHLOAuthToken).filter(
-            GHLOAuthToken.ghl_location_id == location_id
-        ).first()
+        result = await self.db.execute(
+            select(GHLOAuthToken).where(GHLOAuthToken.ghl_location_id == location_id)
+        )
+        token_record = result.scalar_one_or_none()
 
         if token_record:
             # Update existing record
@@ -273,7 +279,7 @@ class GHLOAuthService:
             )
             self.db.add(token_record)
 
-        self.db.commit()
+        await self.db.commit()
 
     async def revoke_token(self, location_id: str) -> bool:
         """
@@ -285,13 +291,14 @@ class GHLOAuthService:
         Returns:
             True if revoked successfully
         """
-        token_record = self.db.query(GHLOAuthToken).filter(
-            GHLOAuthToken.ghl_location_id == location_id
-        ).first()
+        result = await self.db.execute(
+            select(GHLOAuthToken).where(GHLOAuthToken.ghl_location_id == location_id)
+        )
+        token_record = result.scalar_one_or_none()
 
         if token_record:
-            self.db.delete(token_record)
-            self.db.commit()
+            await self.db.delete(token_record)
+            await self.db.commit()
             return True
 
         return False
