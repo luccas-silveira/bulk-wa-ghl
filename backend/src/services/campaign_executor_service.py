@@ -231,6 +231,7 @@ class CampaignExecutorService:
                             error_message=f"Contact preparation failed: {str(e)}"
                         )
                         self.db.add(failed_message)
+                        messages_sent_total.labels(status='failed').inc()
                     _pending_commits += len(messages_template)
                     if _pending_commits >= self.BATCH_COMMIT_SIZE:
                         await self.db.commit()
