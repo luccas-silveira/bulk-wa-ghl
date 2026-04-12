@@ -20,9 +20,9 @@
 |------|----------|-----------------|------:|-----------:|
 | **0** — Bloqueadores de produção | Sistema deployável, seguro, timezone correto, secrets validados, pool controlado, dashboard sem dados fake | EPIC-01, 02, 03, 04, 05 (críticos/altos), 06 (validadores), 11 (ANA-01/02/03) | 41 | 41 |
 | **1** — Estabilidade e segurança | State machine, webhooks idempotentes, telefone E.164, router frontend, UI crítica, infra de deploy, observabilidade | EPIC-05 (resto), 06 (resto), 07, 08, 09, 12, 13 (críticos), 14 (críticos/altos), 15, 17 | 73 | 66 |
-| **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 0 |
+| **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 8 |
 | **Fora de fase** | EPIC-18 Opção B (remoção WAHA) + RAIZ-09 (endpoint createCampaign) | EPIC-18, RAIZ-09 | 6 | 6 |
-| **Total** | | | **172** | **113** |
+| **Total** | | | **172** | **121** |
 
 **Notas sobre contagem:**
 - **Fase 3 (Polish e Backlog)** não aparece como linha separada: os itens de severidade Baixa que o plano mestre consolida em Fase 3 aqui ficam dentro de seus EPICs originais nas Fases 1 e 2, para evitar duplicação.
@@ -32,7 +32,7 @@
 
 ## Próximo passo recomendado
 
-**Fase 0 concluída (41/41). Fase 1 concluída (66/66).** Próximo: iniciar Fase 2 — EPIC-10 (Performance e N+1), EPIC-11 (Analytics resto), EPIC-13 (UI resto), EPIC-14 (Wizard resto), EPIC-16 (Nginx/SSL).
+**Fase 0 concluída (41/41). Fase 1 concluída (66/66). Fase 2 em andamento (8/52).** EPIC-10 concluído (2026-04-12). Próximo: EPIC-11 (Analytics resto), EPIC-13 (UI resto), EPIC-14 (Wizard resto), EPIC-16 (Nginx/SSL).
 
 **PERS-25** (AsyncSession + asyncpg) está pendente do EPIC-05 — planejado em PR separado; impacto alto mas isolável.
 
@@ -281,16 +281,16 @@ Critérios de saída (plano mestre, linha 612):
 - Frontend com optimistic updates
 
 ### EPIC-10 — Performance e N+1 Queries
-**Dependências:** EPIC-01 • **Itens:** 8 • **Concluídos:** 0
+**Dependências:** EPIC-01 • **Itens:** 8 • **Concluídos:** 8 • **Status:** ✅ Concluído (2026-04-12)
 
-- [ ] **ANA-04** — JOIN + GROUP BY em vez de loop em `analytics_service.py:150-175` (Médio)
-- [ ] **ANA-05** — JOIN + GROUP BY + `outerjoin` em `analytics_service.py:207-239` (Médio)
-- [ ] **ANA-07** — `db.query(Campaign.status, func.count()).group_by(...)` em `analytics_service.py:40-49` (Baixo)
-- [ ] **PERS-17** — Índices compostos `(status, ghl_location_id)`, `(status, created_at)` em `models/campaign.py:70-74` (Baixo)
-- [ ] **PERS-18** — Índice parcial em `status` para `pending`/`sent` em `models/message.py:62-69` (Baixo)
-- [ ] **ANA-27** — Cache HTTP (Cache-Control) ou in-process com TTL 10-30s em `analytics_service.py` (Médio)
-- [ ] **RAIZ-06 (CAMP-15 / GHL-27)** — `httpx.AsyncClient` singleton por serviço (Médio)
-- [ ] **ANA-17** — Timeout de 5s no endpoint; retornar 504 se exceder em `api/analytics.py:15-102` (Baixo)
+- [x] **ANA-04** — JOIN + GROUP BY em vez de loop em `analytics_service.py:150-175` (Médio)
+- [x] **ANA-05** — JOIN + GROUP BY + `outerjoin` em `analytics_service.py:207-239` (Médio)
+- [x] **ANA-07** — `db.query(Campaign.status, func.count()).group_by(...)` em `analytics_service.py:40-49` (Baixo)
+- [x] **PERS-17** — Índices compostos `(status, ghl_location_id)`, `(status, created_at)` em `models/campaign.py:70-74` (Baixo)
+- [x] **PERS-18** — Índice parcial em `status` para `pending`/`sent` em `models/message.py:62-69` (Baixo)
+- [x] **ANA-27** — Cache in-process com TTL 30s em `api/analytics.py` (Médio)
+- [x] **RAIZ-06 (CAMP-15 / GHL-27)** — `httpx.AsyncClient` singleton por serviço (Médio)
+- [x] **ANA-17** — Timeout de 5s no endpoint; retornar 504 se exceder em `api/analytics.py:15-102` (Baixo)
 
 ### EPIC-11 — Analytics: Dados Reais e Contrato API (resto)
 **Dependências:** EPIC-10 • **Itens:** 17 • **Concluídos:** 0
