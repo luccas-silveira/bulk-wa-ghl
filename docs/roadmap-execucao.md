@@ -2,7 +2,7 @@
 
 **Propósito:** rastreamento operacional do [plano mestre](plano-implementacao-mestre.md).
 **Fonte da verdade descritiva:** `plano-implementacao-mestre.md` contém descrição detalhada de cada item (arquivo, linha, ação específica, critérios de conclusão). Este documento só rastreia status e serve como painel executável.
-**Última atualização:** 2026-04-12 (EPIC-10 + EPIC-11 + EPIC-13 concluídos — 152/172 itens; Fase 2: 39/52)
+**Última atualização:** 2026-04-12 (EPIC-14 Fase 2 concluído — 160/172 itens; Fase 2: 47/52)
 **Branch ativa:** `004-campaign-management`
 
 ---
@@ -20,9 +20,9 @@
 |------|----------|-----------------|------:|-----------:|
 | **0** — Bloqueadores de produção | Sistema deployável, seguro, timezone correto, secrets validados, pool controlado, dashboard sem dados fake | EPIC-01, 02, 03, 04, 05 (críticos/altos), 06 (validadores), 11 (ANA-01/02/03) | 41 | 41 |
 | **1** — Estabilidade e segurança | State machine, webhooks idempotentes, telefone E.164, router frontend, UI crítica, infra de deploy, observabilidade | EPIC-05 (resto), 06 (resto), 07, 08, 09, 12, 13 (críticos), 14 (críticos/altos), 15, 17 | 73 | 66 |
-| **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 25 |
+| **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 47 |
 | **Fora de fase** | EPIC-18 Opção B (remoção WAHA) + RAIZ-09 (endpoint createCampaign) | EPIC-18, RAIZ-09 | 6 | 6 |
-| **Total** | | | **172** | **138** |
+| **Total** | | | **172** | **160** |
 
 **Notas sobre contagem:**
 - **Fase 3 (Polish e Backlog)** não aparece como linha separada: os itens de severidade Baixa que o plano mestre consolida em Fase 3 aqui ficam dentro de seus EPICs originais nas Fases 1 e 2, para evitar duplicação.
@@ -32,7 +32,7 @@
 
 ## Próximo passo recomendado
 
-**Fase 0 concluída (41/41). Fase 1 concluída (66/66). Fase 2 em andamento (39/52).** EPIC-10 concluído (2026-04-12). EPIC-11 concluído (2026-04-12). EPIC-13 concluído (2026-04-12). Próximo: EPIC-14 (Wizard resto), EPIC-16 (Nginx/SSL).
+**Fase 0 concluída (41/41). Fase 1 concluída (66/66). Fase 2 em andamento (47/52).** EPIC-10 concluído (2026-04-12). EPIC-11 concluído (2026-04-12). EPIC-13 concluído (2026-04-12). EPIC-14 concluído (2026-04-12). Próximo: EPIC-16 (Nginx/SSL endurecido — 4 itens: INFRA-25, 26, 27, 28).
 
 **PERS-25** (AsyncSession + asyncpg) está pendente do EPIC-05 — planejado em PR separado; impacto alto mas isolável.
 
@@ -333,16 +333,16 @@ Critérios de saída (plano mestre, linha 612):
 - [x] **FRONT-40** — `shadow-ghl-lg` em Toast, Card elevated, ErrorBoundary (Baixo)
 
 ### EPIC-14 — Wizard/Campanhas (resto)
-**Dependências:** RAIZ-09, EPIC-02, EPIC-09 • **Itens:** 8 • **Concluídos:** 0
+**Dependências:** RAIZ-09, EPIC-02, EPIC-09 • **Itens:** 8 • **Concluídos:** 8 • **Status:** ✅ Concluído (2026-04-12)
 
-- [ ] **FRONT-26** — Só limpar errors após avançar com sucesso em `CampaignWizard.tsx:269-277` (Baixo)
-- [ ] **FRONT-27** — `useRef` + foco ao mudar step em `CampaignWizard.tsx:269-277` (Baixo)
-- [ ] **FRONT-28** — Salvar column mapping em localStorage em `CampaignWizard.tsx:47,98-126` (Baixo)
-- [ ] **FRONT-30** — Optimistic updates com `onMutate`/`onError` em `CampaignList.tsx:50-71` (Médio)
-- [ ] **FRONT-33** — `refetchInterval` se campanha em execução em `CampaignDetails.tsx:31-34` (Baixo)
-- [ ] **FRONT-34** — Modal pedindo nome da campanha para confirmar delete em `CampaignActions.tsx:87-120` (Médio)
-- [ ] **CAMP-26** — Adicionar spinner `Loader2` no botão submit em `CampaignWizard.tsx:231-265` (Baixo)
-- [ ] **CAMP-27** — `.filter()` antes do `.map()` na paginação em `CampaignList.tsx:278-292` (Baixo)
+- [x] **FRONT-26** — Só limpar errors após avançar com sucesso em `CampaignWizard.tsx:269-277` (Baixo)
+- [x] **FRONT-27** — `useRef` + foco ao mudar step em `CampaignWizard.tsx:269-277` (Baixo)
+- [x] **FRONT-28** — Salvar column mapping em localStorage em `CampaignWizard.tsx:47,98-126` (Baixo)
+- [x] **FRONT-30** — Optimistic updates com `onMutate`/`onError` em `CampaignList.tsx:50-71` (Médio)
+- [x] **FRONT-33** — `refetchInterval` se campanha em execução em `CampaignDetails.tsx:31-34` (Baixo)
+- [x] **FRONT-34** — Modal pedindo nome da campanha para confirmar delete em `CampaignActions.tsx:87-120` (Médio)
+- [x] **CAMP-26** — Adicionar spinner `Loader2` no botão submit em `CampaignWizard.tsx:231-265` (Baixo)
+- [x] **CAMP-27** — `.filter()` antes do `.map()` na paginação em `CampaignList.tsx:278-292` (Baixo)
 
 ### EPIC-16 — Nginx, SSL e Headers de Segurança
 **Dependências:** nenhuma • **Itens:** 4 • **Concluídos:** 0
@@ -391,3 +391,4 @@ Este não é um EPIC por si, mas um problema raiz transversal listado no plano m
 | 2026-04-10 | DECISAO-02 a DECISAO-09 resolvidas. EPIC-01 (Alembic Baseline) concluído: `alembic/env.py` corrigido (PERS-03, INFRA-24), migration `eb03c3cc8781_initial_schema` gerada e aplicada ao banco dev. Total: 9 itens concluídos. | Implementação direta |
 | 2026-04-11 | Fase 1 concluída (66/66). 6 PRs mergeados em `004-campaign-management`: PR-1 (EPIC-06 State Machine), PR-2 (EPIC-07 Execução + EPIC-08 Webhooks), PR-3 (EPIC-09 E.164 + EPIC-13 UI críticos), PR-4 (EPIC-05 resto + EPIC-17 Observabilidade), PR-5 (EPIC-15 Infra/Deploy/Backup), PR-6 (EPIC-12 React Router + EPIC-14 Wizard + RAIZ-09). | PRs mergeados |
 | 2026-04-12 | EPIC-13 concluído (14/15 — FRONT-20 dead, Sidebar deletado). 14 itens: Toast ARIA+FIFO, Card keyboard nav, Button/Badge/Input a11y, Sentry integration, shadow-ghl-lg, skip link, darkMode. Fase 2: 39/52. Total: 152/172. | Subagent-Driven Development |
+| 2026-04-12 | EPIC-14 Fase 2 concluído (8/8). FRONT-26/27/28/30/33/34, CAMP-26/27: erro limpo ao voltar no wizard, foco no heading, localStorage para column mapping, spinner no submit, optimistic updates na CampaignList, refetchInterval condicional, modal de confirmação com nome da campanha. TypeScript fix: `Query<CampaignDetailsResponse>`. 83/83 testes passando. Fase 2: 47/52. Total: 160/172. | Subagent-Driven Development |
