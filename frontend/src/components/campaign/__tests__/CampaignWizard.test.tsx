@@ -1,6 +1,6 @@
 // frontend/src/components/campaign/__tests__/CampaignWizard.test.tsx
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CampaignWizard from '../CampaignWizard';
 import Papa from 'papaparse';
@@ -122,17 +122,19 @@ async function advanceToStep4() {
 
   // Step 3: set up Papa.parse mock to fire synchronously, then trigger upload
   (Papa.parse as jest.Mock).mockImplementation((_file: File, opts: any) => {
-    opts.complete({
-      data: [{ telefone: '+5511999999999', nome: 'Contato Teste' }],
-      meta: {
-        fields: ['telefone', 'nome'],
-        delimiter: ',',
-        linebreak: '\n',
-        abortCSV: false,
-        cursor: 0,
-        truncated: false,
-      },
-      errors: [],
+    act(() => {
+      opts.complete({
+        data: [{ telefone: '+5511999999999', nome: 'Contato Teste' }],
+        meta: {
+          fields: ['telefone', 'nome'],
+          delimiter: ',',
+          linebreak: '\n',
+          abortCSV: false,
+          cursor: 0,
+          truncated: false,
+        },
+        errors: [],
+      });
     });
   });
 
