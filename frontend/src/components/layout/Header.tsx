@@ -31,7 +31,7 @@ const Header: React.FC<HeaderProps> = ({ className }) => {
           </span>
 
           {/* Navigation Tabs */}
-          <nav className="flex gap-2 border-b border-gray-200">
+          <nav aria-label="Navegação principal" className="flex gap-2 border-b border-gray-200">
             <button
               onClick={() => navigate('/')}
               className={`${buttonBaseClasses} ${isActive('/') ? activeClasses : inactiveClasses}`}

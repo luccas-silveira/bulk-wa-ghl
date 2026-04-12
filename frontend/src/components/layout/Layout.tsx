@@ -14,9 +14,16 @@ const Layout: React.FC<LayoutProps> = ({ children, className }) => {
 
   return (
     <div className={containerClasses}>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-white focus:rounded focus:shadow-ghl"
+      >
+        Pular para conteúdo
+      </a>
+
       <Header />
 
-      <main className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
+      <main id="main-content" className="max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
         {children}
       </main>
     </div>
