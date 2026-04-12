@@ -11,9 +11,11 @@ class TestHttpClientSingleton:
         from src.services.ghl_conversations_service import GHLConversationsService
         from src.services.ghl_contacts_service import GHLContactsService
         from src.services.ghl_oauth_service import GHLOAuthService
+        from src.services.ghl_users_service import GHLUsersService
         GHLConversationsService._http_client = None
         GHLContactsService._http_client = None
         GHLOAuthService._http_client = None
+        GHLUsersService._http_client = None
 
     def test_conversations_service_reuses_client(self):
         from src.services.ghl_conversations_service import GHLConversationsService
@@ -31,6 +33,12 @@ class TestHttpClientSingleton:
         from src.services.ghl_oauth_service import GHLOAuthService
         client_a = GHLOAuthService._get_client()
         client_b = GHLOAuthService._get_client()
+        assert client_a is client_b
+
+    def test_users_service_reuses_client(self):
+        from src.services.ghl_users_service import GHLUsersService
+        client_a = GHLUsersService._get_client()
+        client_b = GHLUsersService._get_client()
         assert client_a is client_b
 
 

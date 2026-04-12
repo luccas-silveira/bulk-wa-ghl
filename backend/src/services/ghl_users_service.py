@@ -83,7 +83,6 @@ class GHLUsersService:
             f"{self.BASE_URL}/users/",
             headers=headers,
             params={"locationId": location_id},
-            timeout=10.0
         )
 
         response.raise_for_status()
