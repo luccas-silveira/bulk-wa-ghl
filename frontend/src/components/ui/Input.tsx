@@ -83,6 +83,10 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       className
     ].filter(Boolean).join(' ');
 
+    if (process.env.NODE_ENV !== 'production' && props.value !== undefined && props.defaultValue !== undefined) {
+      console.warn('[Input] Both value and defaultValue props are provided. Use only one to avoid controlled/uncontrolled conflicts.');
+    }
+
     return (
       <div className={fullWidth ? 'w-full' : ''}>
         {label && (
@@ -91,7 +95,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           </label>
         )}
         <div className="relative">
-          {leftIcon && (
+          {React.isValidElement(leftIcon) && (
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               {React.cloneElement(leftIcon as React.ReactElement, {
                 className: 'h-5 w-5 text-gray-400'
@@ -112,6 +116,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
                 <button
                   type="button"
                   className="text-gray-400 hover:text-gray-600 focus:outline-none"
+                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                  aria-pressed={showPassword}
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
@@ -120,7 +126,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
                     <Eye className="h-5 w-5" />
                   )}
                 </button>
-              ) : rightIcon ? (
+              ) : React.isValidElement(rightIcon) ? (
                 React.cloneElement(rightIcon as React.ReactElement, {
                   className: 'h-5 w-5 text-gray-400'
                 })

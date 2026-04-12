@@ -53,3 +53,45 @@ describe('Input — accessibility fix (FRONT-11)', () => {
     expect(screen.queryByRole('label')).not.toBeInTheDocument();
   });
 });
+
+describe('Input — password toggle ARIA (FRONT-15)', () => {
+  it('password toggle has aria-label "Mostrar senha" by default', () => {
+    render(<Input type="password" />);
+    const btn = screen.getByRole('button', { name: 'Mostrar senha' });
+    expect(btn).toBeInTheDocument();
+    expect(btn).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('password toggle aria-label changes to "Ocultar senha" when active', async () => {
+    render(<Input type="password" />);
+    const btn = screen.getByRole('button', { name: 'Mostrar senha' });
+    await userEvent.click(btn);
+    expect(screen.getByRole('button', { name: 'Ocultar senha' })).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
+describe('Input — controlled/uncontrolled guard (FRONT-19)', () => {
+  const originalEnv = process.env.NODE_ENV;
+
+  beforeEach(() => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    (process.env as any).NODE_ENV = 'development';
+  });
+
+  afterEach(() => {
+    (console.warn as jest.Mock).mockRestore();
+    (process.env as any).NODE_ENV = originalEnv;
+  });
+
+  it('warns when both value and defaultValue are provided', () => {
+    render(<Input value="a" defaultValue="b" onChange={() => {}} />);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('[Input]')
+    );
+  });
+
+  it('does not warn with only value', () => {
+    render(<Input value="a" onChange={() => {}} />);
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+});

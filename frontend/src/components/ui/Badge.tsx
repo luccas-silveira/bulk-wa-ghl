@@ -59,11 +59,11 @@ const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
         {removable && onRemove && (
           <button
             type="button"
+            aria-label="Remover"
             onClick={onRemove}
             className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-black hover:bg-opacity-10 focus:outline-none"
           >
-            <span className="sr-only">Remove</span>
-            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
+            <svg aria-hidden="true" className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
               <path d="M6 5.293l2.146-2.147a.5.5 0 01.708.708L6.707 6l2.147 2.146a.5.5 0 01-.708.708L6 6.707 3.854 8.854a.5.5 0 01-.708-.708L5.293 6 3.146 3.854a.5.5 0 01.708-.708L6 5.293z" />
             </svg>
           </button>
