@@ -136,6 +136,9 @@ async def get_top_campaigns(
     """Return top-performing campaigns — single JOIN query (ANA-05)."""
     date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
+    # Using Message.status (not ghl_status): ghl_status is often NULL in test data
+    # and not consistently set by all code paths. Both fields are kept in sync by
+    # the webhook handler in production, so the metric is equivalent in practice.
     delivered_statuses = ("delivered", "read")
     msg_subq = (
         select(
@@ -166,6 +169,7 @@ async def get_top_campaigns(
     )
     if ghl_user_id:
         stmt = stmt.where(Campaign.ghl_user_id == ghl_user_id)
+    # Sort by reads first, then delivered — matches original Python sort and existing tests
     stmt = stmt.order_by(msg_subq.c.reads.desc(), msg_subq.c.delivered.desc()).limit(limit)
 
     rows = (await db.execute(stmt)).all()
