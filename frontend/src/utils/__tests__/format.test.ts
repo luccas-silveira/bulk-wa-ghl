@@ -12,6 +12,15 @@ describe('formatNumber', () => {
   it('formats large numbers', () => {
     expect(formatNumber(12500)).toBe('12.500');
   });
+
+  it('formats negative numbers', () => {
+    expect(formatNumber(-1500)).toBe('-1.500');
+  });
+
+  it('formats decimal numbers', () => {
+    // Intl.NumberFormat pt-BR preserves decimal places with comma separator
+    expect(formatNumber(1500.5)).toBe('1.500,5');
+  });
 });
 
 describe('formatPercentage', () => {
@@ -25,5 +34,9 @@ describe('formatPercentage', () => {
 
   it('rounds to one decimal', () => {
     expect(formatPercentage(12.567)).toBe('12.6%');
+  });
+
+  it('formats 100%', () => {
+    expect(formatPercentage(100)).toBe('100.0%');
   });
 });
