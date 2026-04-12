@@ -3,7 +3,7 @@
  * GoHighLevel-style modern dashboard with comprehensive components
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { MessageSquare, TrendingUp, CheckCircle } from 'lucide-react';
 import MetricCard from './MetricCard';
 import { CampaignStatusChart, DeliveryRateChart, VolumeMetricsChart } from './ChartComponents';
@@ -23,9 +23,13 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
   const [error, setError] = useState<string | null>(null);
   const [userFilter, setUserFilter] = useState<string>(defaultUserId || '');
   const [timeRange, setTimeRange] = useState<number>(30);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Fetch dashboard data
   const fetchDashboardData = useCallback(async (params: DashboardParams = {}) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     setError(null);
 
@@ -43,8 +47,7 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
       }
 
       // Add timeout to prevent hanging
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const timeoutId = setTimeout(() => controller.abort(), 7000);
 
       const response = await fetch(`${API_BASE_URL}/api/v1/analytics/dashboard?${queryParams}`, {
         signal: controller.signal,
@@ -124,8 +127,13 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
     );
   }
 
-  // Render empty state (no campaigns)
-  if (metrics && metrics.campaign_metrics.total_campaigns === 0) {
+  // Guard: metrics not yet loaded
+  if (!metrics) {
+    return null;
+  }
+
+  // Empty state: metrics loaded but no campaigns exist
+  if (metrics.campaign_metrics.total_campaigns === 0) {
     return (
       <div className="p-6">
         <div className="flex flex-col items-center justify-center min-h-[400px] bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
