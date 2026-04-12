@@ -28,8 +28,18 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
     hover = false,
     clickable = false,
     children,
+    onClick,
+    onKeyDown,
     ...props
   }, ref) => {
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (clickable && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        onClick?.(e as unknown as React.MouseEvent<HTMLDivElement>);
+      }
+      onKeyDown?.(e);
+    };
+
     const baseClasses = [
       'rounded-lg overflow-hidden transition-all duration-200',
       clickable ? 'cursor-pointer' : '',
@@ -38,7 +48,7 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
 
     const variants = {
       default: 'bg-white border border-gray-200 shadow-ghl',
-      elevated: 'bg-white shadow-lg border border-gray-100',
+      elevated: 'bg-white shadow-ghl-lg border border-gray-100',
       outlined: 'bg-white border-2 border-gray-300 shadow-none',
       ghost: 'bg-transparent border-none shadow-none',
     };
@@ -63,6 +73,8 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
         ref={ref}
         role={clickable ? 'button' : undefined}
         tabIndex={clickable ? 0 : undefined}
+        onClick={onClick}
+        onKeyDown={clickable ? handleKeyDown : onKeyDown}
         {...props}
       >
         {children}
@@ -210,7 +222,7 @@ const MetricCard = React.forwardRef<HTMLDivElement, MetricCardProps>(
                 </div>
               )}
             </div>
-            {icon && (
+            {React.isValidElement(icon) && (
               <div className="flex-shrink-0">
                 <div className="p-3 bg-primary-50 rounded-lg">
                   {React.cloneElement(icon as React.ReactElement, {
