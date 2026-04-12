@@ -71,6 +71,8 @@ class Campaign(Base):
         Index('idx_campaigns_status', 'status'),
         Index('idx_campaigns_created_at', 'created_at'),
         Index('idx_campaigns_ghl_location', 'ghl_location_id'),
+        Index('idx_campaigns_status_location', 'status', 'ghl_location_id'),
+        Index('idx_campaigns_status_created_at', 'status', 'created_at'),
     )
 
     VALID_STATUSES: set = {

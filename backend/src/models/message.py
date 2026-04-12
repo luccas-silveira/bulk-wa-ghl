@@ -2,7 +2,7 @@
 Message Model
 Represents a WhatsApp message sent through a campaign
 """
-from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, Text, TIMESTAMP, ForeignKey, Index, text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship, validates
 from src.database import Base
@@ -66,6 +66,12 @@ class Message(Base):
         Index('idx_messages_ghl_conversation', 'ghl_conversation_id'),
         Index('idx_messages_ghl_message_id', 'ghl_message_id'),
         Index('idx_messages_ghl_status', 'ghl_status'),
+        Index(
+            'idx_messages_pending_sent',
+            'campaign_id',
+            'status',
+            postgresql_where=text("status IN ('pending', 'sent')"),
+        ),
     )
 
     VALID_STATUSES: set = {'pending', 'sent', 'delivered', 'read', 'failed'}

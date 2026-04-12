@@ -1060,6 +1060,25 @@ class TestGetCampaignMetricsSingleQuery:
             assert metrics[key] == 0
 
 
+class TestModelIndexes:
+    """PERS-17 / PERS-18: verify composite & partial indexes declared on models."""
+
+    def test_campaign_has_composite_status_location_index(self):
+        from src.models.campaign import Campaign
+        index_names = {idx.name for idx in Campaign.__table__.indexes}
+        assert "idx_campaigns_status_location" in index_names
+
+    def test_campaign_has_composite_status_created_at_index(self):
+        from src.models.campaign import Campaign
+        index_names = {idx.name for idx in Campaign.__table__.indexes}
+        assert "idx_campaigns_status_created_at" in index_names
+
+    def test_message_has_partial_pending_sent_index(self):
+        from src.models.message import Message
+        index_names = {idx.name for idx in Message.__table__.indexes}
+        assert "idx_messages_pending_sent" in index_names
+
+
 @pytest.mark.asyncio
 class TestGetRecentCampaignsNoN1:
     """ANA-04: get_recent_campaigns must fetch all message stats in one query."""
