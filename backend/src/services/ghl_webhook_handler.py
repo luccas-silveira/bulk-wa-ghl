@@ -7,7 +7,8 @@ import hashlib
 import json
 from typing import Dict, Optional
 from datetime import datetime, timezone
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from src.config import GHL_WEBHOOK_SECRET
 from src.models.processed_webhook import ProcessedWebhook
@@ -26,7 +27,7 @@ class GHLWebhookHandler:
     - Conversation tracking
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         """
         Initialize webhook handler
 
@@ -78,9 +79,10 @@ class GHLWebhookHandler:
         webhook_id = self._generate_webhook_id(event_type, payload)
 
         # Check if already processed
-        existing = self.db.query(ProcessedWebhook).filter(
-            ProcessedWebhook.webhook_id == webhook_id
-        ).first()
+        ex_result = await self.db.execute(
+            select(ProcessedWebhook).where(ProcessedWebhook.webhook_id == webhook_id)
+        )
+        existing = ex_result.scalar_one_or_none()
 
         if existing:
             return {
@@ -112,7 +114,7 @@ class GHLWebhookHandler:
             payload_hash=payload_hash
         )
         self.db.add(processed_webhook)
-        self.db.commit()
+        await self.db.commit()
 
         return {
             "status": "processed",
@@ -135,16 +137,17 @@ class GHLWebhookHandler:
         conversation_id = payload.get("conversationId")
 
         # Find message in database by ghl_message_id
-        message = self.db.query(Message).filter(
-            Message.ghl_message_id == message_id
-        ).first()
+        msg_result = await self.db.execute(
+            select(Message).where(Message.ghl_message_id == message_id)
+        )
+        message = msg_result.scalar_one_or_none()
 
         if message:
             if STATUS_ORDER.get('delivered', 0) > STATUS_ORDER.get(message.status, 0):
                 message.status = 'delivered'
                 message.ghl_status = 'delivered'
                 message.delivered_at = datetime.now(timezone.utc)
-                self.db.commit()
+                await self.db.commit()
             return {
                 "message_id": message.id,
                 "status_updated": "delivered" if message.status == 'delivered' else "skipped_no_regression"
@@ -164,16 +167,17 @@ class GHLWebhookHandler:
         """
         message_id = payload.get("messageId")
 
-        message = self.db.query(Message).filter(
-            Message.ghl_message_id == message_id
-        ).first()
+        msg_result = await self.db.execute(
+            select(Message).where(Message.ghl_message_id == message_id)
+        )
+        message = msg_result.scalar_one_or_none()
 
         if message:
             if STATUS_ORDER.get('read', 0) > STATUS_ORDER.get(message.status, 0):
                 message.status = 'read'
                 message.ghl_status = 'read'
                 message.read_at = datetime.now(timezone.utc)
-                self.db.commit()
+                await self.db.commit()
             return {
                 "message_id": message.id,
                 "status_updated": "read" if message.status == 'read' else "skipped_no_regression"
@@ -195,15 +199,16 @@ class GHLWebhookHandler:
         error_code = payload.get("errorCode")
         error_message = payload.get("errorMessage")
 
-        message = self.db.query(Message).filter(
-            Message.ghl_message_id == message_id
-        ).first()
+        msg_result = await self.db.execute(
+            select(Message).where(Message.ghl_message_id == message_id)
+        )
+        message = msg_result.scalar_one_or_none()
 
         if message:
             message.status = "failed"
             message.ghl_status = "failed"
             message.error_message = f"{error_code}: {error_message}" if error_code else error_message
-            self.db.commit()
+            await self.db.commit()
 
             return {
                 "message_id": message.id,
@@ -230,9 +235,10 @@ class GHLWebhookHandler:
         message_text = payload.get("messageText")
 
         # Update or create conversation record
-        conversation = self.db.query(GHLConversation).filter(
-            GHLConversation.ghl_conversation_id == conversation_id
-        ).first()
+        conv_result = await self.db.execute(
+            select(GHLConversation).where(GHLConversation.ghl_conversation_id == conversation_id)
+        )
+        conversation = conv_result.scalar_one_or_none()
 
         if conversation:
             conversation.last_message_at = datetime.now(timezone.utc)
@@ -251,7 +257,7 @@ class GHLWebhookHandler:
             )
             self.db.add(conversation)
 
-        self.db.commit()
+        await self.db.commit()
 
         return {
             "conversation_id": conversation.id,

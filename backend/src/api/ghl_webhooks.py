@@ -6,7 +6,7 @@ import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
 from pydantic import BaseModel, Field, ValidationError
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Optional
 
 from src.database import get_db
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 async def process_webhook(
     request: Request,
     x_ghl_signature: str = Header(None, alias="X-GHL-Signature"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Process incoming webhook from GoHighLevel
