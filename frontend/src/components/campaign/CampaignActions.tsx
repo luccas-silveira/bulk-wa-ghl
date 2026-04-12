@@ -20,6 +20,7 @@ const CampaignActions: React.FC<CampaignActionsProps> = ({
   const [resumeLoading, setResumeLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteNameInput, setDeleteNameInput] = useState('');
 
   const handlePause = async () => {
     if (!onPause) return;
@@ -47,6 +48,7 @@ const CampaignActions: React.FC<CampaignActionsProps> = ({
     try {
       await onDelete(campaign.id);
       setShowDeleteConfirm(false);
+      setDeleteNameInput('');
     } finally {
       setDeleteLoading(false);
     }
@@ -92,30 +94,52 @@ const CampaignActions: React.FC<CampaignActionsProps> = ({
               size="sm"
               loading={deleteLoading}
               icon={<Trash2 />}
-              onClick={() => setShowDeleteConfirm(true)}
+              onClick={() => {
+                setDeleteNameInput('');
+                setShowDeleteConfirm(true);
+              }}
               title="Delete campaign"
             >
               Delete
             </Button>
           ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Delete campaign?</span>
-              <Button
-                variant="danger"
-                size="sm"
-                loading={deleteLoading}
-                onClick={handleDelete}
-              >
-                Confirm
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowDeleteConfirm(false)}
-                disabled={deleteLoading}
-              >
-                Cancel
-              </Button>
+            <div className="flex flex-col gap-2">
+              <span className="text-sm text-gray-700">
+                Digite <strong>{campaign.name}</strong> para confirmar:
+              </span>
+              <input
+                type="text"
+                value={deleteNameInput}
+                onChange={(e) => setDeleteNameInput(e.target.value)}
+                data-testid="delete-name-input"
+                placeholder={campaign.name}
+                autoFocus
+                className="px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-red-500"
+                aria-label="Nome da campanha para confirmar exclusão"
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="danger"
+                  size="sm"
+                  loading={deleteLoading}
+                  disabled={deleteNameInput !== campaign.name}
+                  onClick={handleDelete}
+                  data-testid="delete-confirm-btn"
+                >
+                  Excluir
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setDeleteNameInput('');
+                  }}
+                  disabled={deleteLoading}
+                >
+                  Cancelar
+                </Button>
+              </div>
             </div>
           )}
         </>
