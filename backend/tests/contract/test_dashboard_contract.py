@@ -12,6 +12,15 @@ from src.models.campaign import Campaign
 from src.models.message import Message
 
 
+@pytest.fixture(autouse=True)
+def clear_dashboard_cache():
+    """Clear the module-level TTL cache before every test to prevent contamination."""
+    from src.api import analytics as analytics_module
+    analytics_module._dashboard_cache.clear()
+    yield
+    analytics_module._dashboard_cache.clear()
+
+
 @pytest.mark.asyncio
 class TestDashboardContract:
     """Test suite for dashboard API contract compliance"""
@@ -448,14 +457,6 @@ class TestDashboardTimeout:
 @pytest.mark.asyncio
 class TestDashboardTTLCache:
     """ANA-27: dashboard must serve cached response within TTL window."""
-
-    @pytest.fixture(autouse=True)
-    def clear_dashboard_cache(self):
-        """Clear the module-level TTL cache before every test to prevent contamination."""
-        from src.api import analytics as analytics_module
-        analytics_module._dashboard_cache.clear()
-        yield
-        analytics_module._dashboard_cache.clear()
 
     async def test_second_call_hits_cache_not_db(self, async_client: AsyncClient, db_session):
         """Two rapid calls should result in only one set of DB queries."""
