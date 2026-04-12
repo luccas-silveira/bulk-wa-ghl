@@ -38,7 +38,9 @@ const mockKpiData: MessagingKpiResponse = {
 };
 
 const renderWithClient = () => {
-  const queryClient = new QueryClient();
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
     <QueryClientProvider client={queryClient}>
       <MessagingKpiPanel />
