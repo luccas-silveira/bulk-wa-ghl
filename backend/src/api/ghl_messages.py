@@ -3,7 +3,8 @@ GHL Messages API Endpoints
 Handles sending WhatsApp messages through GoHighLevel
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from pydantic import BaseModel, Field, validator
 import re
 
@@ -37,7 +38,7 @@ class SendMessageRequest(BaseModel):
 @router.post("/send", status_code=status.HTTP_201_CREATED)
 async def send_message(
     request: SendMessageRequest,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Send a WhatsApp message through GHL
@@ -59,9 +60,10 @@ async def send_message(
         400: If sending fails
     """
     # Validate location exists
-    location = db.query(GHLLocation).filter(
-        GHLLocation.ghl_location_id == request.ghl_location_id
-    ).first()
+    loc_result = await db.execute(
+        select(GHLLocation).where(GHLLocation.ghl_location_id == request.ghl_location_id)
+    )
+    location = loc_result.scalar_one_or_none()
 
     if not location:
         raise HTTPException(
@@ -86,7 +88,8 @@ async def send_message(
     # Validate campaign if provided
     campaign = None
     if request.campaign_id:
-        campaign = db.query(Campaign).filter(Campaign.id == request.campaign_id).first()
+        c_result = await db.execute(select(Campaign).where(Campaign.id == request.campaign_id))
+        campaign = c_result.scalar_one_or_none()
         if not campaign:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -120,8 +123,8 @@ async def send_message(
                 ghl_status="sent"
             )
             db.add(message)
-            db.commit()
-            db.refresh(message)
+            await db.commit()
+            await db.refresh(message)
             db_message_id = message.id
 
         return {
@@ -155,7 +158,7 @@ async def send_message(
 @router.get("/{message_id}")
 async def get_message(
     message_id: int,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get message details by ID
@@ -169,7 +172,8 @@ async def get_message(
     Raises:
         404: If message not found
     """
-    message = db.query(Message).filter(Message.id == message_id).first()
+    msg_result = await db.execute(select(Message).where(Message.id == message_id))
+    message = msg_result.scalar_one_or_none()
 
     if not message:
         raise HTTPException(

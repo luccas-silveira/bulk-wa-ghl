@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 import asyncio
 import logging
 
-from src.database import get_db, SessionLocal
+from src.database import get_db, async_session_factory
 from src.limiter import limiter
 from src.services.campaign_management_service import CampaignManagementService
 from src.schemas.campaign import CampaignCreateRequest
@@ -137,7 +137,11 @@ async def pause_campaign(
     try:
         # Get campaign with row-level lock to prevent race conditions
         from src.models.campaign import Campaign
-        campaign = db.query(Campaign).filter(Campaign.id == campaign_id).with_for_update().first()
+        from sqlalchemy import select
+        c_result = await db.execute(
+            select(Campaign).where(Campaign.id == campaign_id).with_for_update()
+        )
+        campaign = c_result.scalar_one_or_none()
 
         if not campaign:
             raise HTTPException(status_code=404, detail={"error": "Not found", "message": f"Campaign with id {campaign_id} not found"})
@@ -155,8 +159,8 @@ async def pause_campaign(
         # Update status
         campaign.transition_to('paused')
         campaign.paused_at = datetime.now()
-        db.commit()
-        db.refresh(campaign)
+        await db.commit()
+        await db.refresh(campaign)
 
         return {
             "message": "Campaign paused successfully",
@@ -167,7 +171,7 @@ async def pause_campaign(
         raise
 
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=500,
             detail={
@@ -198,8 +202,9 @@ async def resume_campaign(
         # Get campaign
         from src.models.campaign import Campaign
         from src.services.campaign_executor_service import CampaignExecutorService
-
-        campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+        from sqlalchemy import select
+        c_result = await db.execute(select(Campaign).where(Campaign.id == campaign_id))
+        campaign = c_result.scalar_one_or_none()
 
         if not campaign:
             raise HTTPException(status_code=404, detail={"error": "Not found", "message": f"Campaign with id {campaign_id} not found"})
@@ -218,7 +223,7 @@ async def resume_campaign(
         executor = CampaignExecutorService(db)
         result = await executor.resume_campaign(campaign_id)
 
-        db.refresh(campaign)
+        await db.refresh(campaign)
         return {
             "message": "Campaign resumed successfully",
             "details": result,
@@ -229,7 +234,7 @@ async def resume_campaign(
         raise
 
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=500,
             detail={
@@ -330,7 +335,7 @@ async def delete_campaign(
             raise HTTPException(status_code=400, detail={"error": "Invalid operation", "message": error_msg})
 
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=500,
             detail={
@@ -445,15 +450,15 @@ async def create_campaign(
         logger.info(f"Single user set: {ghl_user_id}")
 
     db.add(campaign)
-    db.commit()
-    db.refresh(campaign)
+    await db.commit()
+    await db.refresh(campaign)
 
     campaign_id = campaign.id
     logger.info(f"Campaign {campaign_id} created: '{name}' with {len(csv_data)} recipients")
 
     campaign.contacts_data = csv_data
     campaign.messages_template = messages
-    db.commit()
+    await db.commit()
 
     campaign_response = {
         "id": campaign.id,
@@ -471,21 +476,19 @@ async def create_campaign(
         logger.info(f"Starting background execution for campaign {campaign_id}")
 
         async def execute_campaign_background():
-            db_session = SessionLocal()
-            try:
-                executor = CampaignExecutorService(db_session)
-                result = await executor.execute_campaign(
-                    campaign_id=campaign_id,
-                    contacts=csv_data,
-                    messages_template=messages,
-                )
-                logger.info(f"Campaign {campaign_id} completed: {result}")
-            except Exception as e:
-                logger.error(
-                    f"Error executing campaign {campaign_id}: {str(e)}", exc_info=True
-                )
-            finally:
-                db_session.close()
+            async with async_session_factory() as db_session:
+                try:
+                    executor = CampaignExecutorService(db_session)
+                    result = await executor.execute_campaign(
+                        campaign_id=campaign_id,
+                        contacts=csv_data,
+                        messages_template=messages,
+                    )
+                    logger.info(f"Campaign {campaign_id} completed: {result}")
+                except Exception as e:
+                    logger.error(
+                        f"Error executing campaign {campaign_id}: {str(e)}", exc_info=True
+                    )
 
         asyncio.create_task(execute_campaign_background())
 
@@ -500,13 +503,13 @@ async def create_campaign(
                 messages=messages,
             )
             campaign.status = "scheduled"
-            db.commit()
+            await db.commit()
             campaign_response["status"] = "scheduled"
             logger.info(f"Campaign {campaign_id} scheduled successfully")
         except Exception as e:
             logger.error(f"Failed to schedule campaign {campaign_id}: {str(e)}")
             campaign.status = "failed"
-            db.commit()
+            await db.commit()
             campaign_response["status"] = "failed"
 
     return campaign_response

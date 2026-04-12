@@ -7,7 +7,7 @@ import os
 import httpx
 import logging
 from typing import Dict, List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import time
 from datetime import datetime
@@ -90,7 +90,7 @@ class GHLConversationsService:
     API_BASE_URL = "https://services.leadconnectorhq.com"
     API_VERSION = os.getenv("GHL_API_VERSION", "2021-07-28")
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         """
         Initialize conversations service
 

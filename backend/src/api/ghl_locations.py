@@ -3,7 +3,8 @@ GHL Locations API Endpoints
 Provides REST API for managing GHL locations
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Optional
 
 from src.database import get_db
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/ghl/locations", tags=["GHL Locations"])
 async def get_locations(
     active: Optional[bool] = Query(None, description="Filter by active status"),
     whatsapp: Optional[bool] = Query(None, description="Filter by WhatsApp availability"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get list of GHL locations
@@ -29,16 +30,17 @@ async def get_locations(
     Returns:
         Dictionary with locations array
     """
-    query = db.query(GHLLocation)
+    stmt = select(GHLLocation)
 
     # Apply filters
     if active is not None:
-        query = query.filter(GHLLocation.is_active == active)
+        stmt = stmt.where(GHLLocation.is_active == active)
 
     if whatsapp is not None:
-        query = query.filter(GHLLocation.has_whatsapp == whatsapp)
+        stmt = stmt.where(GHLLocation.has_whatsapp == whatsapp)
 
-    locations = query.all()
+    result = await db.execute(stmt)
+    locations = result.scalars().all()
 
     return {
         "locations": [loc.to_dict() for loc in locations]
@@ -48,7 +50,7 @@ async def get_locations(
 @router.get("/{location_id}", response_model=dict)
 async def get_location_by_id(
     location_id: str,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get a specific GHL location by ID
@@ -62,9 +64,10 @@ async def get_location_by_id(
     Raises:
         404: If location not found
     """
-    location = db.query(GHLLocation).filter(
-        GHLLocation.ghl_location_id == location_id
-    ).first()
+    result = await db.execute(
+        select(GHLLocation).where(GHLLocation.ghl_location_id == location_id)
+    )
+    location = result.scalar_one_or_none()
 
     if not location:
         raise HTTPException(status_code=404, detail=f"Location {location_id} not found")
@@ -75,7 +78,7 @@ async def get_location_by_id(
 @router.get("/{location_id}/validate", response_model=dict)
 async def validate_location(
     location_id: str,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Validate a GHL location for WhatsApp messaging
@@ -95,9 +98,10 @@ async def validate_location(
     Raises:
         404: If location not found
     """
-    location = db.query(GHLLocation).filter(
-        GHLLocation.ghl_location_id == location_id
-    ).first()
+    result = await db.execute(
+        select(GHLLocation).where(GHLLocation.ghl_location_id == location_id)
+    )
+    location = result.scalar_one_or_none()
 
     if not location:
         raise HTTPException(status_code=404, detail=f"Location {location_id} not found")
@@ -130,9 +134,10 @@ async def validate_location(
         }
 
     # Check OAuth token
-    oauth_token = db.query(GHLOAuthToken).filter(
-        GHLOAuthToken.ghl_location_id == location_id
-    ).first()
+    oauth_result = await db.execute(
+        select(GHLOAuthToken).where(GHLOAuthToken.ghl_location_id == location_id)
+    )
+    oauth_token = oauth_result.scalar_one_or_none()
 
     if not oauth_token:
         return {
