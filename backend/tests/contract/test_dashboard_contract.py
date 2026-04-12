@@ -12,6 +12,15 @@ from src.models.campaign import Campaign
 from src.models.message import Message
 
 
+@pytest.fixture(autouse=True)
+def clear_dashboard_cache():
+    """Clear the module-level TTL cache before every test to prevent contamination."""
+    from src.api import analytics as analytics_module
+    analytics_module._dashboard_cache.clear()
+    yield
+    analytics_module._dashboard_cache.clear()
+
+
 @pytest.mark.asyncio
 class TestDashboardContract:
     """Test suite for dashboard API contract compliance"""
@@ -443,3 +452,98 @@ class TestDashboardTimeout:
         data = response.json()
         assert "detail" in data
         assert "timeout" in data["detail"].lower()
+
+
+@pytest.mark.asyncio
+class TestDashboardTTLCache:
+    """ANA-27: dashboard must serve cached response within TTL window."""
+
+    async def test_second_call_hits_cache_not_db(self, async_client: AsyncClient, db_session):
+        """Two rapid calls should result in only one set of DB queries."""
+        from unittest.mock import patch
+        from src.api import analytics as analytics_module
+
+        # Clear any stale cache before test
+        analytics_module._dashboard_cache.clear()
+
+        call_count = 0
+        original_get_campaign_metrics = analytics_module.analytics_service.get_campaign_metrics
+
+        async def counting_get_campaign_metrics(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return await original_get_campaign_metrics(*args, **kwargs)
+
+        with patch.object(
+            analytics_module.analytics_service,
+            "get_campaign_metrics",
+            side_effect=counting_get_campaign_metrics
+        ):
+            r1 = await async_client.get("/api/v1/analytics/dashboard")
+            r2 = await async_client.get("/api/v1/analytics/dashboard")
+
+        assert r1.status_code == 200
+        assert r2.status_code == 200
+        assert r1.json() == r2.json(), "Cached response must match original"
+        assert call_count == 1, (
+            f"Expected 1 DB call (cached on 2nd), got {call_count}"
+        )
+
+    async def test_cache_bypass_with_header(self, async_client: AsyncClient, db_session):
+        """X-Cache-Bypass: true must skip cache and re-query DB."""
+        from unittest.mock import patch
+        from src.api import analytics as analytics_module
+
+        analytics_module._dashboard_cache.clear()
+
+        call_count = 0
+        original = analytics_module.analytics_service.get_campaign_metrics
+
+        async def counting(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return await original(*args, **kwargs)
+
+        with patch.object(
+            analytics_module.analytics_service,
+            "get_campaign_metrics",
+            side_effect=counting
+        ):
+            await async_client.get("/api/v1/analytics/dashboard")
+            await async_client.get(
+                "/api/v1/analytics/dashboard",
+                headers={"X-Cache-Bypass": "true"}
+            )
+
+        assert call_count == 2, "Bypass header must force re-query"
+
+    async def test_different_query_params_have_separate_cache_entries(
+        self, async_client: AsyncClient, db_session
+    ):
+        """Different ghl_user_id params must be cached independently."""
+        from unittest.mock import patch
+        from src.api import analytics as analytics_module
+
+        analytics_module._dashboard_cache.clear()
+
+        call_count = 0
+        original = analytics_module.analytics_service.get_campaign_metrics
+
+        async def counting(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return await original(*args, **kwargs)
+
+        with patch.object(
+            analytics_module.analytics_service,
+            "get_campaign_metrics",
+            side_effect=counting
+        ):
+            await async_client.get("/api/v1/analytics/dashboard")
+            await async_client.get("/api/v1/analytics/dashboard?ghl_user_id=user_abc")
+            # Third call same as first — should hit cache
+            await async_client.get("/api/v1/analytics/dashboard")
+
+        assert call_count == 2, (
+            f"Expected 2 DB calls (2 distinct cache keys), got {call_count}"
+        )

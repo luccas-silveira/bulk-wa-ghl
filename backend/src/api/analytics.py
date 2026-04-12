@@ -3,15 +3,20 @@ Analytics API Endpoints
 Provides dashboard analytics and metrics for campaigns and messages
 """
 import asyncio
+import time
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
+from typing import Any, Optional
 
 from src.database import get_db
 from src.services import analytics_service
 from src.limiter import limiter
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["Analytics"])
+
+# In-process TTL cache: key → (timestamp, payload)
+_dashboard_cache: dict[str, tuple[float, Any]] = {}
+_CACHE_TTL_SECONDS = 30.0
 
 
 @router.get("/dashboard", response_model=dict)
@@ -26,7 +31,15 @@ async def get_dashboard(
     Get dashboard metrics with real-time campaign and delivery data.
 
     Returns 504 if analytics queries exceed 5 seconds.
+    Caches responses for 30 seconds. Use X-Cache-Bypass: true to force re-query.
     """
+    bypass = request.headers.get("X-Cache-Bypass", "").lower() == "true"
+    cache_key = f"{ghl_user_id}:{days}"
+
+    if not bypass and cache_key in _dashboard_cache:
+        cached_at, cached_payload = _dashboard_cache[cache_key]
+        if time.monotonic() - cached_at < _CACHE_TTL_SECONDS:
+            return cached_payload
 
     async def _gather_all():
         # Sequential awaits share one AsyncSession — asyncio.gather() with
@@ -73,7 +86,7 @@ async def get_dashboard(
     else:
         filter_info = "Dados agregados de todos os usuários"
 
-    return {
+    payload = {
         "campaign_metrics": campaign_metrics,
         "delivery_metrics": delivery_metrics,
         "recent_campaigns": recent_campaigns,
@@ -82,3 +95,6 @@ async def get_dashboard(
         "time_range": time_range,
         "filter_info": filter_info,
     }
+
+    _dashboard_cache[cache_key] = (time.monotonic(), payload)
+    return payload
