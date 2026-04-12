@@ -3,7 +3,7 @@ Analytics API Endpoints
 Provides dashboard analytics and metrics for campaigns and messages
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
 from src.database import get_db
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/v1/analytics", tags=["Analytics"])
 async def get_dashboard(
     ghl_user_id: Optional[str] = Query(None, description="Filter metrics by GoHighLevel user ID"),
     days: int = Query(30, ge=1, le=365, description="Time range in days (1-365)"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get dashboard metrics with real-time campaign and delivery data
@@ -42,21 +42,21 @@ async def get_dashboard(
 
     try:
         # Get campaign metrics
-        campaign_metrics = analytics_service.get_campaign_metrics(
+        campaign_metrics = await analytics_service.get_campaign_metrics(
             db=db,
             ghl_user_id=ghl_user_id,
             days=days
         )
 
         # Get delivery metrics
-        delivery_metrics = analytics_service.get_delivery_metrics(
+        delivery_metrics = await analytics_service.get_delivery_metrics(
             db=db,
             ghl_user_id=ghl_user_id,
             days=days
         )
 
         # Get recent campaigns
-        recent_campaigns = analytics_service.get_recent_campaigns(
+        recent_campaigns = await analytics_service.get_recent_campaigns(
             db=db,
             ghl_user_id=ghl_user_id,
             days=days,
@@ -64,7 +64,7 @@ async def get_dashboard(
         )
 
         # Get top performing campaigns
-        top_performing_campaigns = analytics_service.get_top_campaigns(
+        top_performing_campaigns = await analytics_service.get_top_campaigns(
             db=db,
             ghl_user_id=ghl_user_id,
             days=days,
@@ -72,7 +72,7 @@ async def get_dashboard(
         )
 
         # Get delivery timeline for charts
-        timeline = analytics_service.get_delivery_timeline(
+        timeline = await analytics_service.get_delivery_timeline(
             db=db,
             ghl_user_id=ghl_user_id,
             days=days

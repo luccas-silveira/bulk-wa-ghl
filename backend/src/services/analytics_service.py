@@ -4,271 +4,167 @@ Provides dashboard analytics and metrics for campaigns and messages
 """
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func, case, desc
 
 from src.models.campaign import Campaign
 from src.models.message import Message
 
 
-def get_campaign_metrics(
-    db: Session,
+async def get_campaign_metrics(
+    db: AsyncSession,
     ghl_user_id: Optional[str] = None,
     days: int = 30
 ) -> Dict:
-    """
-    Get campaign counts by status within time range
-
-    Args:
-        db: Database session
-        ghl_user_id: Optional filter by GHL user ID
-        days: Number of days to look back (default 30)
-
-    Returns:
-        Dictionary with campaign counts by status
-    """
-    # Calculate date threshold
     date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
-    # Base query with time filter
-    query = db.query(Campaign).filter(Campaign.created_at >= date_threshold)
-
-    # Add user filter if provided
+    stmt = select(Campaign).where(Campaign.created_at >= date_threshold)
     if ghl_user_id:
-        query = query.filter(Campaign.ghl_user_id == ghl_user_id)
+        stmt = stmt.where(Campaign.ghl_user_id == ghl_user_id)
 
-    # Get all campaigns
-    campaigns = query.all()
-
-    # Count by status
-    total = len(campaigns)
-    draft = len([c for c in campaigns if c.status == 'draft'])
-    scheduled = len([c for c in campaigns if c.status == 'scheduled'])
-    active = len([c for c in campaigns if c.status == 'executing'])
-    completed = len([c for c in campaigns if c.status == 'completed'])
-    failed = len([c for c in campaigns if c.status == 'failed'])
-    cancelled = len([c for c in campaigns if c.status == 'cancelled'])
+    result = await db.execute(stmt)
+    campaigns = result.scalars().all()
 
     return {
-        'total_campaigns': total,
-        'draft_campaigns': draft,
-        'scheduled_campaigns': scheduled,
-        'active_campaigns': active,
-        'completed_campaigns': completed,
-        'failed_campaigns': failed,
-        'cancelled_campaigns': cancelled
+        'total_campaigns': len(campaigns),
+        'draft_campaigns': sum(1 for c in campaigns if c.status == 'draft'),
+        'scheduled_campaigns': sum(1 for c in campaigns if c.status == 'scheduled'),
+        'active_campaigns': sum(1 for c in campaigns if c.status == 'executing'),
+        'completed_campaigns': sum(1 for c in campaigns if c.status == 'completed'),
+        'failed_campaigns': sum(1 for c in campaigns if c.status == 'failed'),
+        'cancelled_campaigns': sum(1 for c in campaigns if c.status == 'cancelled'),
     }
 
 
-def get_delivery_metrics(
-    db: Session,
+async def get_delivery_metrics(
+    db: AsyncSession,
     ghl_user_id: Optional[str] = None,
     days: int = 30
 ) -> Dict:
-    """
-    Get message delivery statistics and rates
-
-    Args:
-        db: Database session
-        ghl_user_id: Optional filter by GHL user ID
-        days: Number of days to look back (default 30)
-
-    Returns:
-        Dictionary with delivery metrics and rates
-    """
-    # Calculate date threshold
     date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
-    # Base query: messages in time range (include both sent and failed)
-    query = db.query(Message).filter(Message.created_at >= date_threshold)
-
-    # Filter by user through campaign relationship if provided
+    stmt = select(Message).where(Message.created_at >= date_threshold)
     if ghl_user_id:
-        query = query.join(Campaign).filter(
-            Campaign.ghl_user_id == ghl_user_id
-        )
+        stmt = stmt.join(Campaign).where(Campaign.ghl_user_id == ghl_user_id)
 
-    # Get all messages
-    messages = query.all()
+    result = await db.execute(stmt)
+    messages = result.scalars().all()
 
-    # Count by status
-    sent = len([m for m in messages if m.status == 'sent'])
-    delivered = len([m for m in messages if m.status in ('delivered', 'read')])
-    failed = len([m for m in messages if m.status == 'failed'])
-    read = len([m for m in messages if m.status == 'read'])
-
-    # Calculate total — include pending to avoid inflating rate during execution
-    pending = len([m for m in messages if m.status == 'pending'])
+    sent = sum(1 for m in messages if m.status == 'sent')
+    delivered = sum(1 for m in messages if m.status in ('delivered', 'read'))
+    failed = sum(1 for m in messages if m.status == 'failed')
+    read = sum(1 for m in messages if m.status == 'read')
+    pending = sum(1 for m in messages if m.status == 'pending')
     total = pending + sent + delivered + failed
-
-    # Calculate rates
-    if total > 0:
-        delivery_rate = round((sent + delivered) / total * 100, 1)
-        read_rate = round(read / total * 100, 1)
-    else:
-        delivery_rate = 0.0
-        read_rate = 0.0
 
     return {
         'sent': sent,
         'delivered': delivered,
         'failed': failed,
-        'delivery_rate': delivery_rate,
-        'read_rate': read_rate
+        'delivery_rate': round((sent + delivered) / total * 100, 1) if total > 0 else 0.0,
+        'read_rate': round(read / total * 100, 1) if total > 0 else 0.0,
     }
 
 
-def get_recent_campaigns(
-    db: Session,
+async def get_recent_campaigns(
+    db: AsyncSession,
     ghl_user_id: Optional[str] = None,
     days: int = 30,
     limit: int = 5
 ) -> List[Dict]:
-    """
-    Get most recent campaigns with delivery metrics
-
-    Args:
-        db: Database session
-        ghl_user_id: Optional filter by GHL user ID
-        days: Number of days to look back (default 30)
-        limit: Maximum number of campaigns to return (default 5)
-
-    Returns:
-        List of campaign dictionaries with metrics
-    """
-    from sqlalchemy import desc
-
-    # Calculate date threshold
     date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
-    # Base query with filters
-    query = db.query(Campaign).filter(Campaign.created_at >= date_threshold)
-
-    # Add user filter if provided
+    stmt = select(Campaign).where(Campaign.created_at >= date_threshold)
     if ghl_user_id:
-        query = query.filter(Campaign.ghl_user_id == ghl_user_id)
+        stmt = stmt.where(Campaign.ghl_user_id == ghl_user_id)
+    stmt = stmt.order_by(desc(Campaign.created_at)).limit(limit)
 
-    # Order by created_at DESC and limit
-    campaigns = query.order_by(desc(Campaign.created_at)).limit(limit).all()
+    result = await db.execute(stmt)
+    campaigns = result.scalars().all()
 
-    # Build result with delivery metrics for each campaign
-    result = []
+    out = []
     for campaign in campaigns:
-        # Get messages for this campaign
-        messages = db.query(Message).filter(
-            Message.campaign_id == campaign.id,
-            Message.sent_at.isnot(None)
-        ).all()
-
+        msgs_result = await db.execute(
+            select(Message).where(
+                Message.campaign_id == campaign.id,
+                Message.sent_at.isnot(None),
+            )
+        )
+        messages = msgs_result.scalars().all()
         total_messages = len(messages)
-        delivered = len([m for m in messages if m.status in ('delivered', 'read')])
-
-        # Calculate delivery rate
-        delivery_rate = round(delivered / total_messages * 100, 1) if total_messages > 0 else 0.0
-
-        result.append({
+        delivered = sum(1 for m in messages if m.status in ('delivered', 'read'))
+        out.append({
             'id': campaign.id,
             'name': campaign.name,
             'status': campaign.status,
-            'delivery_rate': delivery_rate,
+            'delivery_rate': round(delivered / total_messages * 100, 1) if total_messages > 0 else 0.0,
             'created_at': campaign.created_at.isoformat(),
-            'messages_sent': total_messages
+            'messages_sent': total_messages,
         })
+    return out
 
-    return result
 
-
-def get_top_campaigns(
-    db: Session,
+async def get_top_campaigns(
+    db: AsyncSession,
     ghl_user_id: Optional[str] = None,
     days: int = 30,
     limit: int = 10
 ) -> List[Dict]:
-    """
-    Get top performing campaigns ranked by read rate
-
-    Args:
-        db: Database session
-        ghl_user_id: Optional filter by GHL user ID
-        days: Number of days to look back (default 30)
-        limit: Maximum number of campaigns to return (default 10)
-
-    Returns:
-        List of campaign dictionaries ranked by performance
-    """
-    # Calculate date threshold
     date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
-    # Base query with filters
-    query = db.query(Campaign).filter(Campaign.created_at >= date_threshold)
-
-    # Add user filter if provided
+    stmt = select(Campaign).where(Campaign.created_at >= date_threshold)
     if ghl_user_id:
-        query = query.filter(Campaign.ghl_user_id == ghl_user_id)
+        stmt = stmt.where(Campaign.ghl_user_id == ghl_user_id)
 
-    campaigns = query.all()
+    result = await db.execute(stmt)
+    campaigns = result.scalars().all()
 
-    # Calculate metrics for each campaign
     campaign_metrics = []
     for campaign in campaigns:
-        # Get messages for this campaign
-        messages = db.query(Message).filter(
-            Message.campaign_id == campaign.id,
-            Message.sent_at.isnot(None)
-        ).all()
-
+        msgs_result = await db.execute(
+            select(Message).where(
+                Message.campaign_id == campaign.id,
+                Message.sent_at.isnot(None),
+            )
+        )
+        messages = msgs_result.scalars().all()
         total = len(messages)
         if total == 0:
-            continue  # Skip campaigns with no messages
-
-        delivered = len([m for m in messages if m.status in ('delivered', 'read')])
-        read = len([m for m in messages if m.status == 'read'])
-
-        delivery_rate = round(delivered / total * 100, 1)
-        read_rate = round(read / total * 100, 1)
-
+            continue
+        delivered = sum(1 for m in messages if m.status in ('delivered', 'read'))
+        read = sum(1 for m in messages if m.status == 'read')
         campaign_metrics.append({
             'id': campaign.id,
             'name': campaign.name,
             'delivered_count': delivered,
-            'delivery_rate': delivery_rate,
-            'read_rate': read_rate
+            'delivery_rate': round(delivered / total * 100, 1),
+            'read_rate': round(read / total * 100, 1),
         })
 
-    # Sort by read_rate DESC, then delivery_rate DESC
     campaign_metrics.sort(key=lambda x: (x['read_rate'], x['delivery_rate']), reverse=True)
-
     return campaign_metrics[:limit]
 
 
-def get_delivery_timeline(
-    db: Session,
+async def get_delivery_timeline(
+    db: AsyncSession,
     ghl_user_id: Optional[str] = None,
     days: int = 30
 ) -> Dict:
-    """
-    Get daily delivery timeline data for dashboard charts (ANA-01).
-
-    Returns data grouped by date covering the last `days` days,
-    suitable for both DeliveryRateChart and VolumeMetricsChart.
-    """
     from collections import defaultdict
 
     date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
-    query = db.query(Message).filter(
+    stmt = select(Message).where(
         Message.sent_at >= date_threshold,
         Message.sent_at.isnot(None),
     )
-
     if ghl_user_id:
-        query = query.join(Campaign).filter(
-            Campaign.ghl_user_id == ghl_user_id
-        )
+        stmt = stmt.join(Campaign).where(Campaign.ghl_user_id == ghl_user_id)
 
-    messages = query.all()
+    result = await db.execute(stmt)
+    messages = result.scalars().all()
 
     by_date: dict = defaultdict(lambda: {'sent': 0, 'delivered': 0, 'read': 0, 'total': 0})
-
     for m in messages:
         day = m.sent_at.date()
         by_date[day]['total'] += 1
@@ -280,7 +176,6 @@ def get_delivery_timeline(
                 by_date[day]['read'] += 1
 
     sorted_dates = sorted(by_date.keys())
-
     labels = [d.strftime('%d/%m') for d in sorted_dates]
     sent_list = [by_date[d]['sent'] for d in sorted_dates]
     delivered_list = [by_date[d]['delivered'] for d in sorted_dates]
@@ -288,12 +183,9 @@ def get_delivery_timeline(
     delivery_rate = []
     read_rate = []
     for d in sorted_dates:
-        total = by_date[d]['total']
-        sent_d = by_date[d]['sent']
-        deliv_d = by_date[d]['delivered']
-        read_d = by_date[d]['read']
-        delivery_rate.append(round(deliv_d / total * 100, 1) if total > 0 else 0.0)
-        read_rate.append(round(read_d / total * 100, 1) if total > 0 else 0.0)
+        t = by_date[d]['total']
+        delivery_rate.append(round(by_date[d]['delivered'] / t * 100, 1) if t > 0 else 0.0)
+        read_rate.append(round(by_date[d]['read'] / t * 100, 1) if t > 0 else 0.0)
 
     return {
         'labels': labels,
