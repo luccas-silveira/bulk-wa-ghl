@@ -35,6 +35,9 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (clickable && (e.key === 'Enter' || e.key === ' ')) {
         e.preventDefault();
+        // Keyboard activation reuses onClick; cast is intentional — consumers must
+        // not read mouse-specific properties (clientX, button, etc.) in handlers
+        // triggered from keyboard events.
         onClick?.(e as unknown as React.MouseEvent<HTMLDivElement>);
       }
       onKeyDown?.(e);
