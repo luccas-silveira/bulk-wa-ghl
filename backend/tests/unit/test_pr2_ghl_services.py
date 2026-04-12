@@ -3,8 +3,47 @@ from unittest.mock import MagicMock, AsyncMock, patch
 import httpx
 
 
+class TestHttpClientSingleton:
+    """RAIZ-06: GHL services must reuse a single httpx.AsyncClient."""
+
+    def setup_method(self):
+        """Reset class-level singleton before each test to avoid cross-test leakage."""
+        from src.services.ghl_conversations_service import GHLConversationsService
+        from src.services.ghl_contacts_service import GHLContactsService
+        from src.services.ghl_oauth_service import GHLOAuthService
+        GHLConversationsService._http_client = None
+        GHLContactsService._http_client = None
+        GHLOAuthService._http_client = None
+
+    def test_conversations_service_reuses_client(self):
+        from src.services.ghl_conversations_service import GHLConversationsService
+        client_a = GHLConversationsService._get_client()
+        client_b = GHLConversationsService._get_client()
+        assert client_a is client_b, "Expected singleton — new client created on each call"
+
+    def test_contacts_service_reuses_client(self):
+        from src.services.ghl_contacts_service import GHLContactsService
+        client_a = GHLContactsService._get_client()
+        client_b = GHLContactsService._get_client()
+        assert client_a is client_b
+
+    def test_oauth_service_reuses_client(self):
+        from src.services.ghl_oauth_service import GHLOAuthService
+        client_a = GHLOAuthService._get_client()
+        client_b = GHLOAuthService._get_client()
+        assert client_a is client_b
+
+
 class TestSendMessageUsesContactId:
     """GHL-05: send_message deve usar contact_id, não phone."""
+
+    def setup_method(self):
+        from src.services.ghl_conversations_service import GHLConversationsService
+        GHLConversationsService._http_client = None
+
+    def teardown_method(self):
+        from src.services.ghl_conversations_service import GHLConversationsService
+        GHLConversationsService._http_client = None
 
     @pytest.mark.asyncio
     async def test_payload_contains_contact_id_not_phone(self):
@@ -27,13 +66,9 @@ class TestSendMessageUsesContactId:
             mock_resp.json.return_value = {'id': 'msg1', 'conversationId': 'conv1'}
             return mock_resp
 
-        with patch('httpx.AsyncClient') as mock_client_cls:
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client.post = fake_post
-            mock_client_cls.return_value = mock_client
-
+        mock_client = MagicMock()
+        mock_client.post = fake_post
+        with patch.object(GHLConversationsService, '_get_client', return_value=mock_client):
             await svc.send_message(
                 location_id='loc1',
                 contact_id='contact_abc',
@@ -46,6 +81,14 @@ class TestSendMessageUsesContactId:
 
 class TestSendMessageTypeWhatsApp:
     """GHL-06: send_message deve enviar type='WhatsApp', não 'SMS'."""
+
+    def setup_method(self):
+        from src.services.ghl_conversations_service import GHLConversationsService
+        GHLConversationsService._http_client = None
+
+    def teardown_method(self):
+        from src.services.ghl_conversations_service import GHLConversationsService
+        GHLConversationsService._http_client = None
 
     @pytest.mark.asyncio
     async def test_payload_type_is_whatsapp(self):
@@ -68,13 +111,9 @@ class TestSendMessageTypeWhatsApp:
             mock_resp.json.return_value = {'id': 'm1', 'conversationId': 'c1'}
             return mock_resp
 
-        with patch('httpx.AsyncClient') as mock_client_cls:
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client.post = fake_post
-            mock_client_cls.return_value = mock_client
-
+        mock_client = MagicMock()
+        mock_client.post = fake_post
+        with patch.object(GHLConversationsService, '_get_client', return_value=mock_client):
             await svc.send_message(location_id='loc1', contact_id='c1', message_text='Hi')
 
         assert captured_payload.get('type') == 'WhatsApp'
@@ -83,6 +122,14 @@ class TestSendMessageTypeWhatsApp:
 
 class TestSendMessage401TokenRefresh:
     """GHL-08: 401 deve forçar refresh do token OAuth antes do retry."""
+
+    def setup_method(self):
+        from src.services.ghl_conversations_service import GHLConversationsService
+        GHLConversationsService._http_client = None
+
+    def teardown_method(self):
+        from src.services.ghl_conversations_service import GHLConversationsService
+        GHLConversationsService._http_client = None
 
     def _make_401_error(self):
         mock_request = MagicMock()
@@ -121,13 +168,9 @@ class TestSendMessage401TokenRefresh:
             mock_resp.json.return_value = {'id': 'm1', 'conversationId': 'c1'}
             return mock_resp
 
-        with patch('httpx.AsyncClient') as mock_client_cls:
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client.post = fake_post
-            mock_client_cls.return_value = mock_client
-
+        mock_client = MagicMock()
+        mock_client.post = fake_post
+        with patch.object(GHLConversationsService, '_get_client', return_value=mock_client):
             await svc.send_message(location_id='loc1', contact_id='c1', message_text='Hi')
 
         mock_oauth.refresh_token.assert_called_once_with('loc1')
@@ -147,13 +190,9 @@ class TestSendMessage401TokenRefresh:
 
         http_401_error = self._make_401_error()
 
-        with patch('httpx.AsyncClient') as mock_client_cls:
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock(return_value=None)
-            mock_client.post = AsyncMock(side_effect=http_401_error)
-            mock_client_cls.return_value = mock_client
-
+        mock_client = MagicMock()
+        mock_client.post = AsyncMock(side_effect=http_401_error)
+        with patch.object(GHLConversationsService, '_get_client', return_value=mock_client):
             # tenacity retries 3x then wraps in RetryError (no reraise=True on decorator)
             with pytest.raises((httpx.HTTPStatusError, RetryError)):
                 await svc.send_message(location_id='loc1', contact_id='c1', message_text='Hi')

@@ -5,7 +5,7 @@ Handles contact management in GoHighLevel
 import os
 import httpx
 import logging
-from typing import Dict, Optional
+from typing import ClassVar, Dict, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import time
@@ -29,6 +29,19 @@ class GHLContactsService:
 
     API_BASE_URL = "https://services.leadconnectorhq.com"
     API_VERSION = "2021-07-28"
+    _http_client: ClassVar[Optional[httpx.AsyncClient]] = None
+
+    @classmethod
+    def _get_client(cls) -> httpx.AsyncClient:
+        if cls._http_client is None or cls._http_client.is_closed:
+            cls._http_client = httpx.AsyncClient(timeout=30.0)
+        return cls._http_client
+
+    @classmethod
+    async def close_client(cls) -> None:
+        if cls._http_client and not cls._http_client.is_closed:
+            await cls._http_client.aclose()
+            cls._http_client = None
 
     def __init__(self, db: AsyncSession):
         """
@@ -76,37 +89,37 @@ class GHLContactsService:
         else:
             access_token = await self.oauth_service.get_valid_access_token(location_id)
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            try:
-                # Search contacts by phone
-                response = await client.get(
-                    f"{self.API_BASE_URL}/contacts/",
-                    params={
-                        "locationId": location_id,
-                        "query": phone
-                    },
-                    headers={
-                        "Authorization": f"Bearer {access_token}",
-                        "Version": self.API_VERSION
-                    }
-                )
+        client = self._get_client()
+        try:
+            # Search contacts by phone
+            response = await client.get(
+                f"{self.API_BASE_URL}/contacts/",
+                params={
+                    "locationId": location_id,
+                    "query": phone
+                },
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Version": self.API_VERSION
+                }
+            )
 
-                response.raise_for_status()
-                result = response.json()
+            response.raise_for_status()
+            result = response.json()
 
-                # Check if any contacts were found
-                contacts = result.get("contacts", [])
-                if contacts:
-                    logger.info(f"✅ Contact found for phone {phone}: {contacts[0].get('id')}")
-                    return contacts[0]
+            # Check if any contacts were found
+            contacts = result.get("contacts", [])
+            if contacts:
+                logger.info(f"✅ Contact found for phone {phone}: {contacts[0].get('id')}")
+                return contacts[0]
 
-                logger.info(f"ℹ️  No contact found for phone {phone}")
-                return None
+            logger.info(f"ℹ️  No contact found for phone {phone}")
+            return None
 
-            except httpx.HTTPStatusError as e:
-                error_body = e.response.text if hasattr(e.response, 'text') else 'No response body'
-                logger.error(f"❌ GHL Contacts Search Error: Status {e.response.status_code}, Body: {error_body}")
-                raise
+        except httpx.HTTPStatusError as e:
+            error_body = e.response.text if hasattr(e.response, 'text') else 'No response body'
+            logger.error(f"❌ GHL Contacts Search Error: Status {e.response.status_code}, Body: {error_body}")
+            raise
 
     @retry(
         retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.RequestError)),
@@ -141,29 +154,29 @@ class GHLContactsService:
         if assigned_to:
             update_data["assignedTo"] = assigned_to
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            try:
-                response = await client.put(
-                    f"{self.API_BASE_URL}/contacts/{contact_id}",
-                    json=update_data,
-                    headers={
-                        "Authorization": f"Bearer {access_token}",
-                        "Version": self.API_VERSION,
-                        "Content-Type": "application/json"
-                    }
-                )
+        client = self._get_client()
+        try:
+            response = await client.put(
+                f"{self.API_BASE_URL}/contacts/{contact_id}",
+                json=update_data,
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Version": self.API_VERSION,
+                    "Content-Type": "application/json"
+                }
+            )
 
-                response.raise_for_status()
-                result = response.json()
+            response.raise_for_status()
+            result = response.json()
 
-                contact = result.get("contact", result)
-                logger.info(f"🔄 Contact updated {contact_id}: assigned to {assigned_to}")
-                return contact
+            contact = result.get("contact", result)
+            logger.info(f"🔄 Contact updated {contact_id}: assigned to {assigned_to}")
+            return contact
 
-            except httpx.HTTPStatusError as e:
-                error_body = e.response.text if hasattr(e.response, 'text') else 'No response body'
-                logger.error(f"❌ GHL Contact Update Error: Status {e.response.status_code}, Body: {error_body}")
-                raise
+        except httpx.HTTPStatusError as e:
+            error_body = e.response.text if hasattr(e.response, 'text') else 'No response body'
+            logger.error(f"❌ GHL Contact Update Error: Status {e.response.status_code}, Body: {error_body}")
+            raise
 
     @retry(
         retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.RequestError)),
@@ -216,29 +229,29 @@ class GHLContactsService:
         if assigned_to:
             contact_data["assignedTo"] = assigned_to
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            try:
-                response = await client.post(
-                    f"{self.API_BASE_URL}/contacts/",
-                    json=contact_data,
-                    headers={
-                        "Authorization": f"Bearer {access_token}",
-                        "Version": self.API_VERSION,
-                        "Content-Type": "application/json"
-                    }
-                )
+        client = self._get_client()
+        try:
+            response = await client.post(
+                f"{self.API_BASE_URL}/contacts/",
+                json=contact_data,
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Version": self.API_VERSION,
+                    "Content-Type": "application/json"
+                }
+            )
 
-                response.raise_for_status()
-                result = response.json()
+            response.raise_for_status()
+            result = response.json()
 
-                contact = result.get("contact", result)
-                logger.info(f"➕ Contact created for phone {phone}: {contact.get('id')}")
-                return contact
+            contact = result.get("contact", result)
+            logger.info(f"➕ Contact created for phone {phone}: {contact.get('id')}")
+            return contact
 
-            except httpx.HTTPStatusError as e:
-                error_body = e.response.text if hasattr(e.response, 'text') else 'No response body'
-                logger.error(f"❌ GHL Contact Creation Error: Status {e.response.status_code}, Body: {error_body}")
-                raise
+        except httpx.HTTPStatusError as e:
+            error_body = e.response.text if hasattr(e.response, 'text') else 'No response body'
+            logger.error(f"❌ GHL Contact Creation Error: Status {e.response.status_code}, Body: {error_body}")
+            raise
 
     async def get_or_create_contact(
         self,

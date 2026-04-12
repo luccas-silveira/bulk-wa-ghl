@@ -72,6 +72,15 @@ async def lifespan(app: FastAPI):
 
     yield
     scheduler.shutdown()
+    # Close persistent HTTP clients
+    from src.services.ghl_conversations_service import GHLConversationsService
+    from src.services.ghl_contacts_service import GHLContactsService
+    from src.services.ghl_oauth_service import GHLOAuthService
+    from src.services.ghl_users_service import GHLUsersService
+    await GHLConversationsService.close_client()
+    await GHLContactsService.close_client()
+    await GHLOAuthService.close_client()
+    await GHLUsersService.close_client()
     logger.info("Application shutdown complete")
 
 

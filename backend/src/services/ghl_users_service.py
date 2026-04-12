@@ -5,7 +5,7 @@ Handles fetching users from GoHighLevel API
 import os
 import httpx
 import logging
-from typing import List, Dict, Optional
+from typing import ClassVar, List, Dict, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -21,6 +21,19 @@ class GHLUsersService:
     """Service for managing GHL users"""
 
     BASE_URL = "https://services.leadconnectorhq.com"
+    _http_client: ClassVar[Optional[httpx.AsyncClient]] = None
+
+    @classmethod
+    def _get_client(cls) -> httpx.AsyncClient:
+        if cls._http_client is None or cls._http_client.is_closed:
+            cls._http_client = httpx.AsyncClient(timeout=10.0)
+        return cls._http_client
+
+    @classmethod
+    async def close_client(cls) -> None:
+        if cls._http_client and not cls._http_client.is_closed:
+            await cls._http_client.aclose()
+            cls._http_client = None
 
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -64,20 +77,20 @@ class GHLUsersService:
             "Content-Type": "application/json"
         }
 
-        async with httpx.AsyncClient() as client:
-            # GHL Users API endpoint
-            response = await client.get(
-                f"{self.BASE_URL}/users/",
-                headers=headers,
-                params={"locationId": location_id},
-                timeout=10.0
-            )
+        client = self._get_client()
+        # GHL Users API endpoint
+        response = await client.get(
+            f"{self.BASE_URL}/users/",
+            headers=headers,
+            params={"locationId": location_id},
+            timeout=10.0
+        )
 
-            response.raise_for_status()
-            data = response.json()
+        response.raise_for_status()
+        data = response.json()
 
-            # GHL returns users in "users" array
-            return data.get("users", [])
+        # GHL returns users in "users" array
+        return data.get("users", [])
 
     async def sync_users_for_location(self, location_id: str) -> List[GHLUser]:
         """

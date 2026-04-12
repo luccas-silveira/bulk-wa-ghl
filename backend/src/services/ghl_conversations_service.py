@@ -6,7 +6,7 @@ import asyncio
 import os
 import httpx
 import logging
-from typing import Dict, List, Optional
+from typing import ClassVar, Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 import time
@@ -89,6 +89,19 @@ class GHLConversationsService:
 
     API_BASE_URL = "https://services.leadconnectorhq.com"
     API_VERSION = os.getenv("GHL_API_VERSION", "2021-07-28")
+    _http_client: ClassVar[Optional[httpx.AsyncClient]] = None
+
+    @classmethod
+    def _get_client(cls) -> httpx.AsyncClient:
+        if cls._http_client is None or cls._http_client.is_closed:
+            cls._http_client = httpx.AsyncClient(timeout=30.0)
+        return cls._http_client
+
+    @classmethod
+    async def close_client(cls) -> None:
+        if cls._http_client and not cls._http_client.is_closed:
+            await cls._http_client.aclose()
+            cls._http_client = None
 
     def __init__(self, db: AsyncSession):
         """
@@ -172,41 +185,41 @@ class GHLConversationsService:
         if media_url:
             payload["attachments"] = [media_url]  # Array of URL strings, not objects
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            try:
-                response = await client.post(
-                    f"{self.API_BASE_URL}/conversations/messages",
-                    json=payload,
-                    headers={
-                        "Authorization": f"Bearer {access_token}",
-                        "Version": self.API_VERSION,
-                        "Content-Type": "application/json"
-                    }
-                )
-
-                response.raise_for_status()
-                result = response.json()
-
-                return {
-                    "messageId": result.get("id"),
-                    "conversationId": result.get("conversationId"),
-                    "contactId": result.get("contactId"),
-                    "status": "sent",
-                    "sentAt": datetime.utcnow().isoformat()
+        client = self._get_client()
+        try:
+            response = await client.post(
+                f"{self.API_BASE_URL}/conversations/messages",
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Version": self.API_VERSION,
+                    "Content-Type": "application/json"
                 }
+            )
 
-            except httpx.HTTPStatusError as e:
-                # Log detailed error information
-                error_body = e.response.text if hasattr(e.response, 'text') else 'No response body'
-                logger.error(f'❌ GHL API Error: Status {e.response.status_code}, URL: {e.request.url}, Body: {error_body}')
+            response.raise_for_status()
+            result = response.json()
 
-                if e.response.status_code == 401 and not self.use_private_token:
-                    # GHL-08: token expired at runtime → force refresh, then re-raise for @retry
-                    logger.warning(f'Token expired for location {location_id}, forcing refresh')
-                    await self.oauth_service.refresh_token(location_id)
-                elif e.response.status_code == 429:
-                    raise RateLimitExceeded('GHL API rate limit exceeded')
-                raise
+            return {
+                "messageId": result.get("id"),
+                "conversationId": result.get("conversationId"),
+                "contactId": result.get("contactId"),
+                "status": "sent",
+                "sentAt": datetime.utcnow().isoformat()
+            }
+
+        except httpx.HTTPStatusError as e:
+            # Log detailed error information
+            error_body = e.response.text if hasattr(e.response, 'text') else 'No response body'
+            logger.error(f'❌ GHL API Error: Status {e.response.status_code}, URL: {e.request.url}, Body: {error_body}')
+
+            if e.response.status_code == 401 and not self.use_private_token:
+                # GHL-08: token expired at runtime → force refresh, then re-raise for @retry
+                logger.warning(f'Token expired for location {location_id}, forcing refresh')
+                await self.oauth_service.refresh_token(location_id)
+            elif e.response.status_code == 429:
+                raise RateLimitExceeded('GHL API rate limit exceeded')
+            raise
 
     @retry(
         retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.RequestError)),
@@ -232,17 +245,17 @@ class GHLConversationsService:
         else:
             access_token = await self.oauth_service.get_valid_access_token(location_id)
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self.API_BASE_URL}/conversations/{conversation_id}",
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Version": self.API_VERSION
-                }
-            )
+        client = self._get_client()
+        response = await client.get(
+            f"{self.API_BASE_URL}/conversations/{conversation_id}",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Version": self.API_VERSION
+            }
+        )
 
-            response.raise_for_status()
-            return response.json()
+        response.raise_for_status()
+        return response.json()
 
     @retry(
         retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.RequestError)),
@@ -274,23 +287,23 @@ class GHLConversationsService:
         else:
             access_token = await self.oauth_service.get_valid_access_token(location_id)
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self.API_BASE_URL}/conversations",
-                params={
-                    "locationId": location_id,
-                    "limit": limit,
-                    "offset": offset
-                },
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Version": self.API_VERSION
-                }
-            )
+        client = self._get_client()
+        response = await client.get(
+            f"{self.API_BASE_URL}/conversations",
+            params={
+                "locationId": location_id,
+                "limit": limit,
+                "offset": offset
+            },
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Version": self.API_VERSION
+            }
+        )
 
-            response.raise_for_status()
-            result = response.json()
-            return result.get("conversations", [])
+        response.raise_for_status()
+        result = response.json()
+        return result.get("conversations", [])
 
     async def get_message_status(
         self,
@@ -315,14 +328,14 @@ class GHLConversationsService:
         else:
             access_token = await self.oauth_service.get_valid_access_token(location_id)
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self.API_BASE_URL}/conversations/messages/{message_id}",
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Version": self.API_VERSION
-                }
-            )
+        client = self._get_client()
+        response = await client.get(
+            f"{self.API_BASE_URL}/conversations/messages/{message_id}",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Version": self.API_VERSION
+            }
+        )
 
-            response.raise_for_status()
-            return response.json()
+        response.raise_for_status()
+        return response.json()

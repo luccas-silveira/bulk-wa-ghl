@@ -6,7 +6,7 @@ import os
 import logging
 import httpx
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional
+from typing import ClassVar, Dict, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from dotenv import load_dotenv
@@ -33,6 +33,19 @@ class GHLOAuthService:
 
     GHL_OAUTH_BASE_URL = "https://marketplace.gohighlevel.com/oauth"
     GHL_API_BASE_URL = "https://services.leadconnectorhq.com"
+    _http_client: ClassVar[Optional[httpx.AsyncClient]] = None
+
+    @classmethod
+    def _get_client(cls) -> httpx.AsyncClient:
+        if cls._http_client is None or cls._http_client.is_closed:
+            cls._http_client = httpx.AsyncClient(timeout=10.0)
+        return cls._http_client
+
+    @classmethod
+    async def close_client(cls) -> None:
+        if cls._http_client and not cls._http_client.is_closed:
+            await cls._http_client.aclose()
+            cls._http_client = None
 
     def __init__(self, db: AsyncSession):
         """
@@ -66,14 +79,14 @@ class GHLOAuthService:
         POST to GHL token endpoint with timeout and retry on network errors.
         Retries only on RequestError (transient network issues), not on HTTPStatusError (4xx/5xx).
         """
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(
-                f"{self.GHL_OAUTH_BASE_URL}/token",
-                data=data,
-                headers={"Content-Type": "application/x-www-form-urlencoded"}
-            )
-            response.raise_for_status()
-            return response.json()
+        client = self._get_client()
+        response = await client.post(
+            f"{self.GHL_OAUTH_BASE_URL}/token",
+            data=data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"}
+        )
+        response.raise_for_status()
+        return response.json()
 
     def get_authorization_url(self, state: Optional[str] = None) -> str:
         """
