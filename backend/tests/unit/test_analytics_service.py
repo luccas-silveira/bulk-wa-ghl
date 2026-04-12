@@ -1034,9 +1034,9 @@ class TestGetRecentCampaignsNoN1:
 
     async def test_single_execute_call_for_five_campaigns(self, db_session):
         from unittest.mock import patch, AsyncMock, MagicMock
-        from datetime import datetime
+        from datetime import datetime, timezone
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         rows = [
             MagicMock(id=i, name=f"Camp {i}", status="completed",
                       created_at=now, total=10, delivered=8)
@@ -1057,9 +1057,9 @@ class TestGetRecentCampaignsNoN1:
 
     async def test_zero_messages_gives_zero_delivery_rate(self, db_session):
         from unittest.mock import patch, AsyncMock, MagicMock
-        from datetime import datetime
+        from datetime import datetime, timezone
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         rows = [MagicMock(id=1, name="Empty", status="completed",
                           created_at=now, total=0, delivered=0)]
         fake_result = MagicMock()

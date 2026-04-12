@@ -113,8 +113,8 @@ async def get_recent_campaigns(
     rows = (await db.execute(stmt)).all()
     result = []
     for row in rows:
-        total = row.total or 0
-        delivered = row.delivered or 0
+        total = row.total
+        delivered = row.delivered
         rate = round((delivered / total) * 100, 1) if total > 0 else 0.0
         result.append({
             "id": row.id,
