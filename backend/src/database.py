@@ -14,13 +14,18 @@ def _async_url(url: str) -> str:
     return url  # already has driver or is sqlite+aiosqlite (tests)
 
 
+_url = _async_url(DATABASE_URL)
+_is_sqlite = _url.startswith("sqlite")
+
 engine = create_async_engine(
-    _async_url(DATABASE_URL),
+    _url,
     echo=DEBUG,
-    pool_size=DB_POOL_SIZE,
-    max_overflow=DB_MAX_OVERFLOW,
-    pool_pre_ping=True,
-    pool_recycle=3600,
+    **({} if _is_sqlite else {
+        "pool_size": DB_POOL_SIZE,
+        "max_overflow": DB_MAX_OVERFLOW,
+        "pool_pre_ping": True,
+        "pool_recycle": 3600,
+    }),
 )
 
 async_session_factory = async_sessionmaker(

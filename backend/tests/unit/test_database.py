@@ -3,20 +3,17 @@ Unit tests for database.py async session factory.
 Uses aiosqlite (in-memory) — no real PostgreSQL required.
 """
 import pytest
-import os
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.mark.asyncio
 async def test_get_db_yields_async_session():
     """get_db() deve retornar um AsyncSession."""
-    os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+    # conftest.py already sets DATABASE_URL=sqlite+aiosqlite:///:memory:
+    # so src.database is loaded with aiosqlite — no reload needed
+    from src.database import get_db
 
-    import importlib
-    import src.database as db_module
-    importlib.reload(db_module)
-
-    gen = db_module.get_db()
+    gen = get_db()
     session = await gen.__anext__()
     assert isinstance(session, AsyncSession)
     try:

@@ -112,8 +112,8 @@ class TestDashboardContract:
             created_at=datetime.now()
         )
         db_session.add(campaign)
-        db_session.commit()
-        db_session.refresh(campaign)
+        await db_session.commit()
+        await db_session.refresh(campaign)
 
         message = Message(
             campaign_id=campaign.id,
@@ -124,7 +124,7 @@ class TestDashboardContract:
             sent_at=datetime.now()
         )
         db_session.add(message)
-        db_session.commit()
+        await db_session.commit()
 
         response = await async_client.get("/api/v1/analytics/dashboard")
 
@@ -173,7 +173,7 @@ class TestDashboardContract:
                 created_at=datetime.now()
             )
             db_session.add(campaign)
-        db_session.commit()
+        await db_session.commit()
 
         response = await async_client.get("/api/v1/analytics/dashboard")
 
@@ -203,9 +203,9 @@ class TestDashboardContract:
             created_at=datetime.now() - timedelta(days=2)
         )
         db_session.add_all([campaign1, campaign2])
-        db_session.commit()
-        db_session.refresh(campaign1)
-        db_session.refresh(campaign2)
+        await db_session.commit()
+        await db_session.refresh(campaign1)
+        await db_session.refresh(campaign2)
 
         # Create messages
         for i in range(100):
@@ -218,7 +218,7 @@ class TestDashboardContract:
                 sent_at=datetime.now()
             )
             db_session.add(msg)
-        db_session.commit()
+        await db_session.commit()
 
         response = await async_client.get("/api/v1/analytics/dashboard")
 
@@ -282,8 +282,8 @@ class TestDashboardContract:
             created_at=datetime.now()
         )
         db_session.add(campaign)
-        db_session.commit()
-        db_session.refresh(campaign)
+        await db_session.commit()
+        await db_session.refresh(campaign)
 
         # Create messages for delivery metrics
         for i in range(60):
@@ -296,7 +296,7 @@ class TestDashboardContract:
                 sent_at=datetime.now()
             )
             db_session.add(msg)
-        db_session.commit()
+        await db_session.commit()
 
         response = await async_client.get("/api/v1/analytics/dashboard?ghl_user_id=user_abc123")
 
@@ -318,8 +318,8 @@ class TestDashboardContract:
             created_at=datetime.now()
         )
         db_session.add(campaign)
-        db_session.commit()
-        db_session.refresh(campaign)
+        await db_session.commit()
+        await db_session.refresh(campaign)
 
         # Add message for delivery rate calculation
         msg = Message(
@@ -331,7 +331,7 @@ class TestDashboardContract:
             sent_at=datetime.now()
         )
         db_session.add(msg)
-        db_session.commit()
+        await db_session.commit()
 
         response = await async_client.get("/api/v1/analytics/dashboard")
 
@@ -364,8 +364,8 @@ class TestDashboardContract:
             created_at=datetime.now()
         )
         db_session.add(campaign)
-        db_session.commit()
-        db_session.refresh(campaign)
+        await db_session.commit()
+        await db_session.refresh(campaign)
 
         # Add messages for metrics
         for i in range(10):
@@ -378,7 +378,7 @@ class TestDashboardContract:
                 sent_at=datetime.now()
             )
             db_session.add(msg)
-        db_session.commit()
+        await db_session.commit()
 
         response = await async_client.get("/api/v1/analytics/dashboard")
 

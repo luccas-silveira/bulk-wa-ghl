@@ -1,7 +1,7 @@
 """Unit tests for Message status guard (GHL-11, PERS-28)."""
 import pytest
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, AsyncMock, patch
 
 from src.models.message import Message, STATUS_ORDER
 
@@ -50,6 +50,7 @@ class TestWebhookNoRegression:
         assert STATUS_ORDER['failed'] == -1
 
 
+@pytest.mark.asyncio
 class TestWebhookHandlerDelivered:
     def _make_handler_with_message(self, current_status: str):
         from src.services.ghl_webhook_handler import GHLWebhookHandler
@@ -58,28 +59,32 @@ class TestWebhookHandlerDelivered:
         msg.id = 1
         msg.status = current_status
         msg.ghl_status = current_status
-        db.query.return_value.filter.return_value.first.return_value = msg
+        # Mock async execute that returns a result with scalar_one_or_none() = msg
+        execute_result = MagicMock()
+        execute_result.scalar_one_or_none.return_value = msg
+        db.execute = AsyncMock(return_value=execute_result)
+        db.commit = AsyncMock()
         with patch('src.services.ghl_webhook_handler.GHL_WEBHOOK_SECRET', 'secret'):
             handler = GHLWebhookHandler(db=db)
         return handler, msg
 
-    def test_delivered_updates_sent_message(self):
+    async def test_delivered_updates_sent_message(self):
         handler, msg = self._make_handler_with_message('sent')
-        asyncio.run(handler.handle_message_delivered({'messageId': 'x', 'conversationId': 'y'}))
+        await handler.handle_message_delivered({'messageId': 'x', 'conversationId': 'y'})
         assert msg.status == 'delivered'
         assert msg.ghl_status == 'delivered'
 
-    def test_delivered_skips_read_message(self):
+    async def test_delivered_skips_read_message(self):
         handler, msg = self._make_handler_with_message('read')
-        asyncio.run(handler.handle_message_delivered({'messageId': 'x', 'conversationId': 'y'}))
+        await handler.handle_message_delivered({'messageId': 'x', 'conversationId': 'y'})
         assert msg.status == 'read'  # unchanged
 
-    def test_read_updates_delivered_message(self):
+    async def test_read_updates_delivered_message(self):
         handler, msg = self._make_handler_with_message('delivered')
-        asyncio.run(handler.handle_message_read({'messageId': 'x'}))
+        await handler.handle_message_read({'messageId': 'x'})
         assert msg.status == 'read'
 
-    def test_read_skips_already_read_message(self):
+    async def test_read_skips_already_read_message(self):
         handler, msg = self._make_handler_with_message('read')
-        asyncio.run(handler.handle_message_read({'messageId': 'x'}))
+        await handler.handle_message_read({'messageId': 'x'})
         assert msg.status == 'read'

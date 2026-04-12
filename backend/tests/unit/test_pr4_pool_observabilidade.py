@@ -65,13 +65,17 @@ class TestBatchCommits:
         assert hasattr(CampaignExecutorService, "BATCH_COMMIT_SIZE")
         assert CampaignExecutorService.BATCH_COMMIT_SIZE == 10
 
-    def test_commit_called_once_per_batch_not_per_message(self):
+    @pytest.mark.asyncio
+    async def test_commit_called_once_per_batch_not_per_message(self):
         """Dado 10 mensagens enviadas com BATCH_COMMIT_SIZE=10, commit deve ser chamado 1 vez (não 10)."""
-        import asyncio
         from unittest.mock import MagicMock, AsyncMock, patch
         from src.services.campaign_executor_service import CampaignExecutorService
 
         db = MagicMock()
+        db.commit = AsyncMock()
+        db.refresh = AsyncMock()
+        db.rollback = AsyncMock()
+        db.add = MagicMock()
 
         # Campaign mock
         campaign = MagicMock()
@@ -82,10 +86,10 @@ class TestBatchCommits:
         campaign.ghl_location_id = "loc_1"
         campaign.get_user_ids_list.return_value = ["user_1"]
 
-        # Simulate pause check: first call (with_for_update) returns the campaign,
-        # subsequent pause-check calls also return campaign (not paused).
-        db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value = campaign
-        db.query.return_value.filter.return_value.first.return_value = campaign
+        # Simulate async db.execute returning campaign via scalar_one_or_none()
+        execute_result = MagicMock()
+        execute_result.scalar_one_or_none.return_value = campaign
+        db.execute = AsyncMock(return_value=execute_result)
 
         svc = CampaignExecutorService(db)
 
@@ -103,12 +107,10 @@ class TestBatchCommits:
         svc.conversations_service.send_message = fake_send_message
 
         with patch("asyncio.sleep", new_callable=AsyncMock):
-            asyncio.get_event_loop().run_until_complete(
-                svc.execute_campaign(
-                    campaign_id=1,
-                    contacts=contacts,
-                    messages_template=messages_template,
-                )
+            await svc.execute_campaign(
+                campaign_id=1,
+                contacts=contacts,
+                messages_template=messages_template,
             )
 
         # With 10 messages and BATCH_COMMIT_SIZE=10, internal per-message commits

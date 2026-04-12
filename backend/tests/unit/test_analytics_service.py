@@ -3,8 +3,8 @@ Unit tests for Analytics Service
 Following TDD approach - tests written before implementation
 """
 import pytest
+import pytest_asyncio
 from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
 
 from src.models.campaign import Campaign
 from src.models.message import Message
@@ -16,12 +16,13 @@ from src.services.analytics_service import (
 )
 
 
+@pytest.mark.asyncio
 class TestGetCampaignMetrics:
     """Tests for get_campaign_metrics() function"""
 
-    def test_no_campaigns_returns_all_zeros(self, db_session):
+    async def test_no_campaigns_returns_all_zeros(self, db_session):
         """Test with no campaigns returns all zeros"""
-        result = get_campaign_metrics(db_session)
+        result = await get_campaign_metrics(db_session)
 
         assert result == {
             'total_campaigns': 0,
@@ -33,7 +34,7 @@ class TestGetCampaignMetrics:
             'cancelled_campaigns': 0
         }
 
-    def test_campaigns_of_different_statuses(self, db_session):
+    async def test_campaigns_of_different_statuses(self, db_session):
         """Test with campaigns of different statuses"""
         # Create campaigns with different statuses
         statuses = ['draft', 'scheduled', 'executing', 'completed', 'failed', 'cancelled']
@@ -44,9 +45,9 @@ class TestGetCampaignMetrics:
                 ghl_location_id="loc_123"
             )
             db_session.add(campaign)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_campaign_metrics(db_session)
+        result = await get_campaign_metrics(db_session)
 
         assert result['total_campaigns'] == 6
         assert result['draft_campaigns'] == 1
@@ -56,7 +57,7 @@ class TestGetCampaignMetrics:
         assert result['failed_campaigns'] == 1
         assert result['cancelled_campaigns'] == 1
 
-    def test_with_user_filter(self, db_session):
+    async def test_with_user_filter(self, db_session):
         """Test with user filter (ghl_user_id)"""
         # Create campaigns for different users
         for i in range(3):
@@ -76,14 +77,14 @@ class TestGetCampaignMetrics:
                 ghl_user_id="user_2"
             )
             db_session.add(campaign)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_campaign_metrics(db_session, ghl_user_id="user_1")
+        result = await get_campaign_metrics(db_session, ghl_user_id="user_1")
 
         assert result['total_campaigns'] == 3
         assert result['completed_campaigns'] == 3
 
-    def test_with_time_range_filter(self, db_session):
+    async def test_with_time_range_filter(self, db_session):
         """Test with time range filter (days)"""
         now = datetime.now()
 
@@ -104,14 +105,14 @@ class TestGetCampaignMetrics:
             created_at=now - timedelta(days=40)
         )
         db_session.add(campaign2)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_campaign_metrics(db_session, days=30)
+        result = await get_campaign_metrics(db_session, days=30)
 
         assert result['total_campaigns'] == 1
         assert result['completed_campaigns'] == 1
 
-    def test_with_combined_filters(self, db_session):
+    async def test_with_combined_filters(self, db_session):
         """Test with combined user and time filters"""
         now = datetime.now()
 
@@ -144,20 +145,21 @@ class TestGetCampaignMetrics:
             created_at=now - timedelta(days=10)
         )
         db_session.add(campaign3)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_campaign_metrics(db_session, ghl_user_id="user_1", days=30)
+        result = await get_campaign_metrics(db_session, ghl_user_id="user_1", days=30)
 
         assert result['total_campaigns'] == 1
         assert result['completed_campaigns'] == 1
 
 
+@pytest.mark.asyncio
 class TestGetDeliveryMetrics:
     """Tests for get_delivery_metrics() function"""
 
-    def test_no_messages_returns_zeros(self, db_session):
+    async def test_no_messages_returns_zeros(self, db_session):
         """Test with no messages returns zeros and 0.0 rates"""
-        result = get_delivery_metrics(db_session)
+        result = await get_delivery_metrics(db_session)
 
         assert result == {
             'sent': 0,
@@ -167,7 +169,7 @@ class TestGetDeliveryMetrics:
             'read_rate': 0.0
         }
 
-    def test_delivery_rate_calculation(self, db_session):
+    async def test_delivery_rate_calculation(self, db_session):
         """Test delivery rate calculation"""
         campaign = Campaign(
             name="Test Campaign",
@@ -175,7 +177,7 @@ class TestGetDeliveryMetrics:
             ghl_location_id="loc_123"
         )
         db_session.add(campaign)
-        db_session.commit()
+        await db_session.commit()
 
         now = datetime.now()
 
@@ -199,15 +201,15 @@ class TestGetDeliveryMetrics:
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_delivery_metrics(db_session)
+        result = await get_delivery_metrics(db_session)
 
         assert result['delivered'] == 8
         assert result['failed'] == 2
         assert result['delivery_rate'] == 80.0  # (8/10) * 100
 
-    def test_read_rate_calculation(self, db_session):
+    async def test_read_rate_calculation(self, db_session):
         """Test read rate calculation"""
         campaign = Campaign(
             name="Test Campaign",
@@ -215,7 +217,7 @@ class TestGetDeliveryMetrics:
             ghl_location_id="loc_123"
         )
         db_session.add(campaign)
-        db_session.commit()
+        await db_session.commit()
 
         now = datetime.now()
 
@@ -239,14 +241,14 @@ class TestGetDeliveryMetrics:
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_delivery_metrics(db_session)
+        result = await get_delivery_metrics(db_session)
 
         assert result['read_rate'] == 60.0  # (6/10) * 100
         assert result['delivery_rate'] == 100.0  # All delivered
 
-    def test_with_failed_messages(self, db_session):
+    async def test_with_failed_messages(self, db_session):
         """Test with failed messages"""
         campaign = Campaign(
             name="Test Campaign",
@@ -254,7 +256,7 @@ class TestGetDeliveryMetrics:
             ghl_location_id="loc_123"
         )
         db_session.add(campaign)
-        db_session.commit()
+        await db_session.commit()
 
         now = datetime.now()
 
@@ -289,9 +291,9 @@ class TestGetDeliveryMetrics:
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_delivery_metrics(db_session)
+        result = await get_delivery_metrics(db_session)
 
         assert result['sent'] == 5
         assert result['delivered'] == 3
@@ -299,15 +301,15 @@ class TestGetDeliveryMetrics:
         # delivery_rate = (sent + delivered) / total * 100 = (5 + 3) / 10 * 100 = 80.0
         assert result['delivery_rate'] == 80.0
 
-    def test_division_by_zero_safety(self, db_session):
+    async def test_division_by_zero_safety(self, db_session):
         """Test division by zero safety"""
         # No messages at all
-        result = get_delivery_metrics(db_session)
+        result = await get_delivery_metrics(db_session)
 
         assert result['delivery_rate'] == 0.0
         assert result['read_rate'] == 0.0
 
-    def test_with_user_filter(self, db_session):
+    async def test_with_user_filter(self, db_session):
         """Test with user filter through campaign relationship"""
         campaign1 = Campaign(
             name="User1 Campaign",
@@ -323,7 +325,7 @@ class TestGetDeliveryMetrics:
         )
         db_session.add(campaign1)
         db_session.add(campaign2)
-        db_session.commit()
+        await db_session.commit()
 
         now = datetime.now()
 
@@ -348,13 +350,13 @@ class TestGetDeliveryMetrics:
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_delivery_metrics(db_session, ghl_user_id="user_1")
+        result = await get_delivery_metrics(db_session, ghl_user_id="user_1")
 
         assert result['delivered'] == 3
 
-    def test_with_time_filter(self, db_session):
+    async def test_with_time_filter(self, db_session):
         """Test with time range filter"""
         campaign = Campaign(
             name="Test Campaign",
@@ -362,7 +364,7 @@ class TestGetDeliveryMetrics:
             ghl_location_id="loc_123"
         )
         db_session.add(campaign)
-        db_session.commit()
+        await db_session.commit()
 
         now = datetime.now()
 
@@ -388,13 +390,13 @@ class TestGetDeliveryMetrics:
                 sent_at=now - timedelta(days=40)
             )
             db_session.add(message)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_delivery_metrics(db_session, days=30)
+        result = await get_delivery_metrics(db_session, days=30)
 
         assert result['delivered'] == 3
 
-    def test_pending_messages_included_in_denominator(self, db_session):
+    async def test_pending_messages_included_in_denominator(self, db_session):
         """ANA-03: pending messages dilute delivery rate — not counted as success"""
         campaign = Campaign(
             name="Test Campaign",
@@ -402,7 +404,7 @@ class TestGetDeliveryMetrics:
             ghl_location_id="loc_123"
         )
         db_session.add(campaign)
-        db_session.commit()
+        await db_session.commit()
 
         now = datetime.now()
 
@@ -423,18 +425,19 @@ class TestGetDeliveryMetrics:
                 status='pending',
                 sent_at=None
             ))
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_delivery_metrics(db_session)
+        result = await get_delivery_metrics(db_session)
 
         assert result['delivered'] == 5
         assert result['delivery_rate'] == 50.0  # 5 / (5 delivered + 5 pending) = 50%
 
 
+@pytest.mark.asyncio
 class TestGetRecentCampaigns:
     """Tests for get_recent_campaigns() function"""
 
-    def test_ordering_by_created_at_desc(self, db_session):
+    async def test_ordering_by_created_at_desc(self, db_session):
         """Test ordering by created_at DESC"""
         now = datetime.now()
 
@@ -447,16 +450,16 @@ class TestGetRecentCampaigns:
                 created_at=now - timedelta(days=i)
             )
             db_session.add(campaign)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_recent_campaigns(db_session)
+        result = await get_recent_campaigns(db_session)
 
         assert len(result) == 5
         # Most recent should be first (days=0)
         assert result[0]['name'] == "Campaign 0"
         assert result[4]['name'] == "Campaign 4"
 
-    def test_limit_parameter(self, db_session):
+    async def test_limit_parameter(self, db_session):
         """Test limit parameter (default 5)"""
         now = datetime.now()
 
@@ -469,17 +472,17 @@ class TestGetRecentCampaigns:
                 created_at=now - timedelta(days=i)
             )
             db_session.add(campaign)
-        db_session.commit()
+        await db_session.commit()
 
         # Default limit (5)
-        result = get_recent_campaigns(db_session)
+        result = await get_recent_campaigns(db_session)
         assert len(result) == 5
 
         # Custom limit (3)
-        result = get_recent_campaigns(db_session, limit=3)
+        result = await get_recent_campaigns(db_session, limit=3)
         assert len(result) == 3
 
-    def test_with_user_and_time_filters(self, db_session):
+    async def test_with_user_and_time_filters(self, db_session):
         """Test with user and time filters"""
         now = datetime.now()
 
@@ -512,14 +515,14 @@ class TestGetRecentCampaigns:
             created_at=now - timedelta(days=40)
         )
         db_session.add(campaign3)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_recent_campaigns(db_session, ghl_user_id="user_1", days=30)
+        result = await get_recent_campaigns(db_session, ghl_user_id="user_1", days=30)
 
         assert len(result) == 1
         assert result[0]['name'] == "Matching Campaign"
 
-    def test_delivery_rate_calculation_per_campaign(self, db_session):
+    async def test_delivery_rate_calculation_per_campaign(self, db_session):
         """Test delivery rate calculation per campaign"""
         campaign = Campaign(
             name="Test Campaign",
@@ -527,7 +530,7 @@ class TestGetRecentCampaigns:
             ghl_location_id="loc_123"
         )
         db_session.add(campaign)
-        db_session.commit()
+        await db_session.commit()
 
         now = datetime.now()
 
@@ -551,9 +554,9 @@ class TestGetRecentCampaigns:
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_recent_campaigns(db_session)
+        result = await get_recent_campaigns(db_session)
 
         assert len(result) == 1
         assert result[0]['id'] == campaign.id
@@ -563,7 +566,7 @@ class TestGetRecentCampaigns:
         assert result[0]['messages_sent'] == 10
         assert 'created_at' in result[0]
 
-    def test_with_campaigns_having_no_messages(self, db_session):
+    async def test_with_campaigns_having_no_messages(self, db_session):
         """Test with campaigns having no messages"""
         campaign = Campaign(
             name="Empty Campaign",
@@ -571,19 +574,20 @@ class TestGetRecentCampaigns:
             ghl_location_id="loc_123"
         )
         db_session.add(campaign)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_recent_campaigns(db_session)
+        result = await get_recent_campaigns(db_session)
 
         assert len(result) == 1
         assert result[0]['delivery_rate'] == 0.0
         assert result[0]['messages_sent'] == 0
 
 
+@pytest.mark.asyncio
 class TestGetTopCampaigns:
     """Tests for get_top_campaigns() function"""
 
-    def test_ranking_by_read_rate_desc(self, db_session):
+    async def test_ranking_by_read_rate_desc(self, db_session):
         """Test ranking by read_rate DESC"""
         now = datetime.now()
 
@@ -601,7 +605,7 @@ class TestGetTopCampaigns:
                 ghl_location_id="loc_123"
             )
             db_session.add(campaign)
-            db_session.commit()
+            await db_session.commit()
 
             # Create 10 messages with specific read rate
             read_count = int(10 * read_rate)
@@ -624,9 +628,9 @@ class TestGetTopCampaigns:
                     sent_at=now - timedelta(days=5)
                 )
                 db_session.add(message)
-            db_session.commit()
+            await db_session.commit()
 
-        result = get_top_campaigns(db_session)
+        result = await get_top_campaigns(db_session)
 
         assert len(result) == 3
         # Should be ordered by read_rate DESC: 80%, 50%, 30%
@@ -637,7 +641,7 @@ class TestGetTopCampaigns:
         assert result[2]['name'] == "Campaign 30% read"
         assert result[2]['read_rate'] == 30.0
 
-    def test_secondary_sort_by_delivery_rate(self, db_session):
+    async def test_secondary_sort_by_delivery_rate(self, db_session):
         """Test secondary sort by delivery_rate when read_rate is equal"""
         now = datetime.now()
 
@@ -649,7 +653,7 @@ class TestGetTopCampaigns:
             ghl_location_id="loc_123"
         )
         db_session.add(campaign1)
-        db_session.commit()
+        await db_session.commit()
 
         for i in range(5):
             message = Message(
@@ -680,7 +684,7 @@ class TestGetTopCampaigns:
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
-        db_session.commit()
+        await db_session.commit()
 
         # Campaign 2: 50% read, 90% delivery
         campaign2 = Campaign(
@@ -689,7 +693,7 @@ class TestGetTopCampaigns:
             ghl_location_id="loc_123"
         )
         db_session.add(campaign2)
-        db_session.commit()
+        await db_session.commit()
 
         for i in range(5):
             message = Message(
@@ -720,9 +724,9 @@ class TestGetTopCampaigns:
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_top_campaigns(db_session)
+        result = await get_top_campaigns(db_session)
 
         assert len(result) == 2
         # Both have 50% read rate, but Campaign 2 has higher delivery rate
@@ -733,7 +737,7 @@ class TestGetTopCampaigns:
         assert result[1]['read_rate'] == 50.0
         assert result[1]['delivery_rate'] == 80.0
 
-    def test_limit_parameter(self, db_session):
+    async def test_limit_parameter(self, db_session):
         """Test limit parameter (default 10)"""
         now = datetime.now()
 
@@ -745,7 +749,7 @@ class TestGetTopCampaigns:
                 ghl_location_id="loc_123"
             )
             db_session.add(campaign)
-            db_session.commit()
+            await db_session.commit()
 
             # Each with 10 messages, all delivered
             for j in range(10):
@@ -757,17 +761,17 @@ class TestGetTopCampaigns:
                     sent_at=now - timedelta(days=5)
                 )
                 db_session.add(message)
-            db_session.commit()
+            await db_session.commit()
 
         # Default limit (10)
-        result = get_top_campaigns(db_session)
+        result = await get_top_campaigns(db_session)
         assert len(result) == 10
 
         # Custom limit (5)
-        result = get_top_campaigns(db_session, limit=5)
+        result = await get_top_campaigns(db_session, limit=5)
         assert len(result) == 5
 
-    def test_excludes_campaigns_with_no_messages(self, db_session):
+    async def test_excludes_campaigns_with_no_messages(self, db_session):
         """Test excludes campaigns with no messages"""
         # Campaign with messages
         campaign1 = Campaign(
@@ -776,7 +780,7 @@ class TestGetTopCampaigns:
             ghl_location_id="loc_123"
         )
         db_session.add(campaign1)
-        db_session.commit()
+        await db_session.commit()
 
         now = datetime.now()
         message = Message(
@@ -795,14 +799,14 @@ class TestGetTopCampaigns:
             ghl_location_id="loc_123"
         )
         db_session.add(campaign2)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_top_campaigns(db_session)
+        result = await get_top_campaigns(db_session)
 
         assert len(result) == 1
         assert result[0]['name'] == "Campaign with messages"
 
-    def test_with_user_and_time_filters(self, db_session):
+    async def test_with_user_and_time_filters(self, db_session):
         """Test with user and time filters"""
         now = datetime.now()
 
@@ -815,7 +819,7 @@ class TestGetTopCampaigns:
             created_at=now - timedelta(days=10)
         )
         db_session.add(campaign1)
-        db_session.commit()
+        await db_session.commit()
 
         message = Message(
             campaign_id=campaign1.id,
@@ -835,7 +839,7 @@ class TestGetTopCampaigns:
             created_at=now - timedelta(days=10)
         )
         db_session.add(campaign2)
-        db_session.commit()
+        await db_session.commit()
 
         message = Message(
             campaign_id=campaign2.id,
@@ -855,7 +859,7 @@ class TestGetTopCampaigns:
             created_at=now - timedelta(days=40)
         )
         db_session.add(campaign3)
-        db_session.commit()
+        await db_session.commit()
 
         message = Message(
             campaign_id=campaign3.id,
@@ -865,14 +869,14 @@ class TestGetTopCampaigns:
             sent_at=now - timedelta(days=35)
         )
         db_session.add(message)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_top_campaigns(db_session, ghl_user_id="user_1", days=30)
+        result = await get_top_campaigns(db_session, ghl_user_id="user_1", days=30)
 
         assert len(result) == 1
         assert result[0]['name'] == "Matching Campaign"
 
-    def test_result_structure(self, db_session):
+    async def test_result_structure(self, db_session):
         """Test result structure has all required fields"""
         campaign = Campaign(
             name="Test Campaign",
@@ -880,7 +884,7 @@ class TestGetTopCampaigns:
             ghl_location_id="loc_123"
         )
         db_session.add(campaign)
-        db_session.commit()
+        await db_session.commit()
 
         now = datetime.now()
         for i in range(10):
@@ -892,9 +896,9 @@ class TestGetTopCampaigns:
                 sent_at=now - timedelta(days=5)
             )
             db_session.add(message)
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_top_campaigns(db_session)
+        result = await get_top_campaigns(db_session)
 
         assert len(result) == 1
         assert 'id' in result[0]
@@ -907,12 +911,13 @@ class TestGetTopCampaigns:
         assert result[0]['delivery_rate'] == 100.0
 
 
+@pytest.mark.asyncio
 class TestGetDeliveryTimeline:
     """ANA-01: timeline data for dashboard charts"""
 
-    def test_returns_empty_when_no_messages(self, db_session):
+    async def test_returns_empty_when_no_messages(self, db_session):
         from src.services.analytics_service import get_delivery_timeline
-        result = get_delivery_timeline(db_session, days=30)
+        result = await get_delivery_timeline(db_session, days=30)
         assert result == {
             'labels': [],
             'sent': [],
@@ -921,13 +926,13 @@ class TestGetDeliveryTimeline:
             'read_rate': [],
         }
 
-    def test_groups_messages_by_date(self, db_session):
+    async def test_groups_messages_by_date(self, db_session):
         from src.services.analytics_service import get_delivery_timeline
         from datetime import datetime, timedelta, timezone
 
         campaign = Campaign(name="TL", status='completed', ghl_location_id="loc1")
         db_session.add(campaign)
-        db_session.commit()
+        await db_session.commit()
 
         today = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
         yesterday = today - timedelta(days=1)
@@ -945,9 +950,9 @@ class TestGetDeliveryTimeline:
                                    content="m", status='delivered', sent_at=yesterday))
         db_session.add(Message(campaign_id=campaign.id, recipient_phone="+5511000000004",
                                content="m", status='read', sent_at=yesterday))
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_delivery_timeline(db_session, days=30)
+        result = await get_delivery_timeline(db_session, days=30)
 
         assert len(result['labels']) == 2
         # Labels sorted ascending (yesterday first)
@@ -963,19 +968,19 @@ class TestGetDeliveryTimeline:
         assert result['delivered'][1] == 2
         assert result['delivery_rate'][1] == 40.0  # 2/5
 
-    def test_respects_days_filter(self, db_session):
+    async def test_respects_days_filter(self, db_session):
         from src.services.analytics_service import get_delivery_timeline
         from datetime import datetime, timedelta, timezone
 
         campaign = Campaign(name="TL2", status='completed', ghl_location_id="loc1")
         db_session.add(campaign)
-        db_session.commit()
+        await db_session.commit()
 
         now = datetime.now(timezone.utc)
         # One message 40 days ago (outside 30-day window)
         db_session.add(Message(campaign_id=campaign.id, recipient_phone="+5511000000005",
                                content="m", status='sent', sent_at=now - timedelta(days=40)))
-        db_session.commit()
+        await db_session.commit()
 
-        result = get_delivery_timeline(db_session, days=30)
+        result = await get_delivery_timeline(db_session, days=30)
         assert result['labels'] == []

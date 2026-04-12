@@ -3,6 +3,7 @@ Test fixtures for contract and integration tests
 Provides sample data for GHL locations, OAuth tokens, and messages
 """
 import pytest
+import pytest_asyncio
 from datetime import datetime, timedelta
 from cryptography.fernet import Fernet
 
@@ -13,8 +14,8 @@ from src.models.message import Message
 from src.services.token_encryption_service import TokenEncryptionService
 
 
-@pytest.fixture
-def sample_ghl_locations(db_session):
+@pytest_asyncio.fixture
+async def sample_ghl_locations(db_session):
     """Create sample GHL locations for testing"""
     # Generate a test encryption key
     test_key = Fernet.generate_key().decode()
@@ -56,7 +57,7 @@ def sample_ghl_locations(db_session):
     for location in locations:
         db_session.add(location)
 
-    db_session.commit()
+    await db_session.commit()
 
     # Add OAuth tokens for active locations
     for location in locations[:2]:  # Only for locations with WhatsApp
@@ -70,13 +71,13 @@ def sample_ghl_locations(db_session):
         )
         db_session.add(token)
 
-    db_session.commit()
+    await db_session.commit()
 
     return locations
 
 
-@pytest.fixture
-def sample_campaign(db_session, sample_ghl_locations):
+@pytest_asyncio.fixture
+async def sample_campaign(db_session, sample_ghl_locations):
     """Create a sample campaign for testing"""
     campaign = Campaign(
         name="Test Campaign",
@@ -85,13 +86,13 @@ def sample_campaign(db_session, sample_ghl_locations):
         ghl_location_name="Test Location 1"
     )
     db_session.add(campaign)
-    db_session.commit()
-    db_session.refresh(campaign)
+    await db_session.commit()
+    await db_session.refresh(campaign)
     return campaign
 
 
-@pytest.fixture
-def sample_messages(db_session, sample_campaign):
+@pytest_asyncio.fixture
+async def sample_messages(db_session, sample_campaign):
     """Create sample messages for webhook testing"""
     messages = [
         Message(
@@ -117,7 +118,7 @@ def sample_messages(db_session, sample_campaign):
     for message in messages:
         db_session.add(message)
 
-    db_session.commit()
+    await db_session.commit()
     return messages
 
 
@@ -134,8 +135,8 @@ def mock_ghl_api_response():
 
 
 # Campaign test fixtures for contract tests
-@pytest.fixture
-def executing_campaign(db_session, sample_ghl_locations):
+@pytest_asyncio.fixture
+async def executing_campaign(db_session, sample_ghl_locations):
     """Create a campaign in executing status"""
     campaign = Campaign(
         name="Executing Campaign",
@@ -143,18 +144,18 @@ def executing_campaign(db_session, sample_ghl_locations):
         ghl_location_id="loc_test123",
         ghl_location_name="Test Location 1",
         ghl_user_id="user_123",
-        ghl_user_ids='["user_123"]',  # JSON string, not Python list
+        ghl_user_ids='["user_123"]',
         sending_speed="medium",
         schedule_type="immediate"
     )
     db_session.add(campaign)
-    db_session.commit()
-    db_session.refresh(campaign)
+    await db_session.commit()
+    await db_session.refresh(campaign)
     return campaign
 
 
-@pytest.fixture
-def paused_campaign(db_session, sample_ghl_locations):
+@pytest_asyncio.fixture
+async def paused_campaign(db_session, sample_ghl_locations):
     """Create a campaign in paused status"""
     campaign = Campaign(
         name="Paused Campaign",
@@ -162,19 +163,19 @@ def paused_campaign(db_session, sample_ghl_locations):
         ghl_location_id="loc_test123",
         ghl_location_name="Test Location 1",
         ghl_user_id="user_123",
-        ghl_user_ids='["user_123"]',  # JSON string, not Python list
+        ghl_user_ids='["user_123"]',
         sending_speed="medium",
         schedule_type="immediate",
         paused_at=datetime.utcnow()
     )
     db_session.add(campaign)
-    db_session.commit()
-    db_session.refresh(campaign)
+    await db_session.commit()
+    await db_session.refresh(campaign)
     return campaign
 
 
-@pytest.fixture
-def completed_campaign(db_session, sample_ghl_locations):
+@pytest_asyncio.fixture
+async def completed_campaign(db_session, sample_ghl_locations):
     """Create a campaign in completed status"""
     campaign = Campaign(
         name="Completed Campaign",
@@ -182,18 +183,18 @@ def completed_campaign(db_session, sample_ghl_locations):
         ghl_location_id="loc_test123",
         ghl_location_name="Test Location 1",
         ghl_user_id="user_123",
-        ghl_user_ids='["user_123"]',  # JSON string, not Python list
+        ghl_user_ids='["user_123"]',
         sending_speed="medium",
         schedule_type="immediate"
     )
     db_session.add(campaign)
-    db_session.commit()
-    db_session.refresh(campaign)
+    await db_session.commit()
+    await db_session.refresh(campaign)
     return campaign
 
 
-@pytest.fixture
-def draft_campaign(db_session, sample_ghl_locations):
+@pytest_asyncio.fixture
+async def draft_campaign(db_session, sample_ghl_locations):
     """Create a campaign in draft status"""
     campaign = Campaign(
         name="Draft Campaign",
@@ -201,18 +202,18 @@ def draft_campaign(db_session, sample_ghl_locations):
         ghl_location_id="loc_test123",
         ghl_location_name="Test Location 1",
         ghl_user_id="user_123",
-        ghl_user_ids='["user_123"]',  # JSON string, not Python list
+        ghl_user_ids='["user_123"]',
         sending_speed="medium",
         schedule_type="immediate"
     )
     db_session.add(campaign)
-    db_session.commit()
-    db_session.refresh(campaign)
+    await db_session.commit()
+    await db_session.refresh(campaign)
     return campaign
 
 
-@pytest.fixture
-def sample_campaign_with_messages(db_session, sample_ghl_locations):
+@pytest_asyncio.fixture
+async def sample_campaign_with_messages(db_session, sample_ghl_locations):
     """Create a campaign with messages for testing logs and cascade delete"""
     campaign = Campaign(
         name="Campaign with Messages",
@@ -220,13 +221,13 @@ def sample_campaign_with_messages(db_session, sample_ghl_locations):
         ghl_location_id="loc_test123",
         ghl_location_name="Test Location 1",
         ghl_user_id="user_123",
-        ghl_user_ids='["user_123"]',  # JSON string, not Python list
+        ghl_user_ids='["user_123"]',
         sending_speed="medium",
         schedule_type="immediate"
     )
     db_session.add(campaign)
-    db_session.commit()
-    db_session.refresh(campaign)
+    await db_session.commit()
+    await db_session.refresh(campaign)
 
     # Add some messages
     messages = [
@@ -253,5 +254,5 @@ def sample_campaign_with_messages(db_session, sample_ghl_locations):
     for message in messages:
         db_session.add(message)
 
-    db_session.commit()
+    await db_session.commit()
     return campaign

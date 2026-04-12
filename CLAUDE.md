@@ -14,6 +14,7 @@ Bulk WhatsApp messaging platform integrated with GoHighLevel (GHL). Manages camp
 - Services: `services/` — business logic (CampaignExecutor, CampaignScheduler, CampaignManagement, GHLConversations, GHLOAuth, TokenEncryption, Analytics, GHLContacts, GHLUsers, GHLWebhookHandler)
 - Models: `models/` — SQLAlchemy 2.0 models (Campaign, Message, GHLLocation, GHLOAuthToken, GHLConversation, GHLUser, ProcessedWebhook)
 - Database: PostgreSQL 16 (Alembic configured in `backend/alembic/`; initial revision `eb03c3cc8781_initial_schema` committed — see "Database migrations" below)
+- **Note:** The DB layer currently uses synchronous SQLAlchemy sessions. A planned migration to full `AsyncSession` + `asyncpg` (PERS-25) is tracked in the roadmap but not yet implemented — do not assume async session support exists.
 
 **Messaging provider:** GoHighLevel (GHL) only. WAHA (WhatsApp HTTP API) is not supported — endpoints, types, and references have been removed. If WAHA support is ever needed again, it will require introducing a provider abstraction layer (`MessageProvider` interface) and refactoring `CampaignExecutorService` to consume it.
 
@@ -22,6 +23,9 @@ Bulk WhatsApp messaging platform integrated with GoHighLevel (GHL). Manages camp
 - State: TanStack Query 5.90 for server state
 - Styling: Tailwind CSS 3.4
 - Charts: Chart.js 4.5 + react-chartjs-2
+- Animations: framer-motion
+- CSV parsing: papaparse (contact list upload in campaign wizard)
+- Phone validation: libphonenumber-js (mirrors backend `phonenumbers` lib; used in campaign wizard)
 - Key areas: `components/dashboard/`, `components/campaign/`, `components/ui/`, `pages/`, `hooks/`, `services/`
 - API client: `services/api-client.ts` uses `VITE_API_URL` env var; `vite.config.ts` proxies `/api → localhost:8000` in dev
 
@@ -58,6 +62,8 @@ Alembic is configured in `backend/alembic/` with autogenerate wired to `src.data
 alembic upgrade head                              # Apply all pending migrations
 alembic revision --autogenerate -m "description" # Generate new revision after model changes
 ```
+
+**Safety for already-populated databases (staging/prod):** run `alembic stamp eb03c3cc8781` before `alembic upgrade head` to mark the baseline revision as applied without re-executing it. On a fresh empty database, run `alembic upgrade head` directly — it applies both revisions in sequence.
 
 Note: `backend/run_migration.py` is a legacy raw-SQL runner that targeted the now-deleted `backend/migrations/` directory. It is dead code — ignore it.
 

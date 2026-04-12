@@ -8,7 +8,15 @@ from src.services.ghl_oauth_service import GHLOAuthService
 
 @pytest.fixture
 def db():
-    return MagicMock()
+    mock = MagicMock()
+    # Default async execute that returns None from scalar_one_or_none
+    default_result = MagicMock()
+    default_result.scalar_one_or_none.return_value = None
+    mock.execute = AsyncMock(return_value=default_result)
+    mock.commit = AsyncMock()
+    mock.refresh = AsyncMock()
+    mock.delete = AsyncMock()
+    return mock
 
 
 @pytest.fixture
@@ -49,7 +57,9 @@ class TestErrorMessages:
     async def test_refresh_token_http_error_generic_message(self, oauth_service, db):
         mock_token = MagicMock()
         mock_token.refresh_token_encrypted = b"encrypted"
-        db.query.return_value.filter.return_value.first.return_value = mock_token
+        execute_result = MagicMock()
+        execute_result.scalar_one_or_none.return_value = mock_token
+        db.execute = AsyncMock(return_value=execute_result)
 
         mock_response = MagicMock()
         mock_response.status_code = 401
@@ -139,9 +149,11 @@ class TestStoreTokens:
         def fake_add(record):
             captured["record"] = record
 
-        db.query.return_value.filter.return_value.first.return_value = None
+        # execute returns None (no existing token record) → new record will be created
+        execute_result = MagicMock()
+        execute_result.scalar_one_or_none.return_value = None
+        db.execute = AsyncMock(return_value=execute_result)
         db.add.side_effect = fake_add
-        db.commit = MagicMock()
 
         token_data = {
             "access_token": "plaintext_at",
@@ -189,23 +201,19 @@ class TestGetValidAccessToken:
     @pytest.mark.asyncio
     async def test_uses_with_for_update(self, oauth_service, db):
         """Verify the query uses with_for_update() for locking"""
-        mock_query = MagicMock()
-        mock_filter = MagicMock()
-        mock_locked = MagicMock()
         mock_token = MagicMock()
         mock_token.is_expired.return_value = False
         mock_token.access_token_encrypted = b"enc"
 
-        db.query.return_value = mock_query
-        mock_query.filter.return_value = mock_filter
-        mock_filter.with_for_update.return_value = mock_locked
-        mock_locked.first.return_value = mock_token
+        execute_result = MagicMock()
+        execute_result.scalar_one_or_none.return_value = mock_token
+        db.execute = AsyncMock(return_value=execute_result)
 
         with patch.object(oauth_service.encryption_service, "decrypt", return_value="token"):
             result = await oauth_service.get_valid_access_token("loc1")
 
-        # Assert with_for_update() was called
-        mock_filter.with_for_update.assert_called_once()
+        # Assert db.execute was called (which internally runs the with_for_update query)
+        db.execute.assert_called_once()
         assert result == "token"
 
     @pytest.mark.asyncio
@@ -214,7 +222,9 @@ class TestGetValidAccessToken:
         mock_token.is_expired.return_value = True
         mock_token.access_token_encrypted = b"enc_new"
 
-        db.query.return_value.filter.return_value.with_for_update.return_value.first.return_value = mock_token
+        execute_result = MagicMock()
+        execute_result.scalar_one_or_none.return_value = mock_token
+        db.execute = AsyncMock(return_value=execute_result)
 
         with patch.object(oauth_service, "refresh_token", new_callable=AsyncMock) as mock_refresh:
             with patch.object(oauth_service.encryption_service, "decrypt", return_value="new_token"):

@@ -47,19 +47,19 @@ class TestHealthContract:
 
     async def test_unhealthy_response_on_db_failure(self, async_client: AsyncClient):
         """GET /health returns 503 when DB is unreachable."""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import MagicMock, AsyncMock
         from sqlalchemy.exc import OperationalError
 
         # Simulate DB failure by making execute() raise OperationalError
         mock_db = MagicMock()
-        mock_db.execute.side_effect = OperationalError(
+        mock_db.execute = AsyncMock(side_effect=OperationalError(
             "connection refused", params=None, orig=None
-        )
+        ))
 
         from src.database import get_db
         from src.main import app
 
-        def override_get_db():
+        async def override_get_db():
             yield mock_db
 
         app.dependency_overrides[get_db] = override_get_db
