@@ -3,6 +3,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import CampaignWizard from '../CampaignWizard';
+import Papa from 'papaparse';
 
 jest.mock('../../../config/env', () => ({ API_BASE_URL: 'http://localhost:8000' }));
 
@@ -17,6 +18,18 @@ jest.mock('../../../hooks/useGHLUsers', () => ({
 jest.mock('../../ui/Toast', () => ({
   useToast: () => ({ addToast: jest.fn() }),
   ToastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+jest.mock('papaparse', () => ({
+  parse: jest.fn(),
+}));
+
+jest.mock('libphonenumber-js', () => ({
+  parsePhoneNumber: jest.fn((phone: string) => ({
+    isValid: () => true,
+    format: () => phone,
+  })),
+  isValidPhoneNumber: jest.fn(() => true),
 }));
 
 const defaultProps = {
@@ -94,13 +107,60 @@ describe('CampaignWizard — FRONT-28: localStorage column mapping', () => {
   });
 });
 
+async function advanceToStep4() {
+  const user = userEvent.setup();
+
+  // Step 1: fill name + select user
+  await user.type(screen.getByPlaceholderText('Digite o nome da campanha'), 'Camp');
+  const checkbox = screen.getByRole('checkbox', { name: /User One/i });
+  await user.click(checkbox);
+  await user.click(screen.getByText('Próximo'));
+
+  // Step 2: add a message text
+  await user.type(screen.getByPlaceholderText(/texto da mensagem/i), 'Olá mundo');
+  await user.click(screen.getByText('Próximo'));
+
+  // Step 3: set up Papa.parse mock to fire synchronously, then trigger upload
+  (Papa.parse as jest.Mock).mockImplementation((_file: File, opts: any) => {
+    opts.complete({
+      data: [{ telefone: '+5511999999999', nome: 'Contato Teste' }],
+      meta: {
+        fields: ['telefone', 'nome'],
+        delimiter: ',',
+        linebreak: '\n',
+        abortCSV: false,
+        cursor: 0,
+        truncated: false,
+      },
+      errors: [],
+    });
+  });
+
+  const fileInput = document.querySelector('input[accept=".csv"]') as HTMLInputElement;
+  const mockFile = new File(['telefone,nome\n+5511999999999,Contato Teste'], 'contacts.csv', {
+    type: 'text/csv',
+  });
+  await user.upload(fileInput, mockFile);
+
+  // Mapping UI appears after parse; 'telefone' auto-detected as phone column
+  await user.click(screen.getByText('Aplicar Mapeamento'));
+
+  // Advance to step 4
+  await user.click(screen.getByText('Próximo'));
+
+  return user;
+}
+
 describe('CampaignWizard — CAMP-26: spinner no botão submit', () => {
-  it('submit button has data-testid="wizard-submit-btn" and shows Loader2 when loading', async () => {
-    // This test verifies the component still renders step 1 correctly after Task 2 changes.
-    // The Loader2 spinner (data-testid="submit-spinner") only appears when loading=true at step 4,
-    // which requires the full CSV upload flow. The presence of data-testid="wizard-submit-btn"
-    // and the Loader2 import are verified via source code inspection.
+  it('exibe botão submit com data-testid correto no step 4', async () => {
     render(<CampaignWizard {...defaultProps} />);
-    expect(screen.getByText('Detalhes da Campanha')).toBeInTheDocument();
+    await advanceToStep4();
+
+    const submitBtn = screen.getByTestId('wizard-submit-btn');
+    expect(submitBtn).toBeInTheDocument();
+    // Spinner não aparece quando loading=false
+    expect(screen.queryByTestId('submit-spinner')).not.toBeInTheDocument();
+    // Texto correto no botão
+    expect(submitBtn).toHaveTextContent('Criar Campanha');
   });
 });
