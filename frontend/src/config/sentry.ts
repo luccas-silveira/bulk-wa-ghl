@@ -7,6 +7,7 @@ export function initSentry(): void {
     dsn,
     environment: import.meta.env.MODE,
     tracesSampleRate: 0.1,
+    integrations: [],   // opt-out of Sentry's default auto-registered integrations (e.g., Replay)
   });
 }
 
