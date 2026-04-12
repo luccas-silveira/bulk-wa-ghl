@@ -3,7 +3,7 @@
  * Displays detailed campaign information with statistics, timeline, and recent messages
  */
 import React from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type Query } from '@tanstack/react-query';
 import {
   Loader2,
   X,
@@ -33,7 +33,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({ campaignId, onClose }
   const { data, isLoading, error } = useQuery({
     queryKey: ['campaign', campaignId],
     queryFn: () => campaignService.getCampaignDetails(campaignId),
-    refetchInterval: (query: import('@tanstack/react-query').Query) => {
+    refetchInterval: (query: Query) => {
       const status = query.state.data?.campaign.status;
       return status === 'executing' ? 5000 : false;
     },
