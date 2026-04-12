@@ -5,6 +5,11 @@ import MessagingKpiPanel from '../MessagingKpiPanel';
 import { analyticsService } from '../../../services/analytics-service';
 import type { MessagingKpiResponse } from '../../../types/analytics';
 
+// Mock env config to avoid import.meta issues in Jest
+jest.mock('../../../config/env', () => ({
+  API_BASE_URL: 'http://localhost:8000',
+}));
+
 jest.mock('../../../services/analytics-service');
 
 jest.mock('react-chartjs-2', () => ({
@@ -80,5 +85,33 @@ describe('MessagingKpiPanel', () => {
 
     await waitFor(() => expect(screen.getByTestId('kpi-error')).toBeInTheDocument());
     expect(screen.getByText(/Server offline/i)).toBeInTheDocument();
+  });
+});
+
+describe('MessagingKpiPanel — controlled days prop', () => {
+  it('calls analyticsService.fetchKpis with external days prop', async () => {
+    (analyticsService.fetchKpis as jest.Mock).mockResolvedValue(mockKpiData);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MessagingKpiPanel days={7} />
+      </QueryClientProvider>
+    );
+    await waitFor(() => expect(analyticsService.fetchKpis).toHaveBeenCalledWith(
+      expect.objectContaining({ days: 7 })
+    ));
+  });
+
+  it('calls onDaysChange when range button is clicked', async () => {
+    (analyticsService.fetchKpis as jest.Mock).mockResolvedValue(mockKpiData);
+    const onDaysChange = jest.fn();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { getByText } = render(
+      <QueryClientProvider client={queryClient}>
+        <MessagingKpiPanel days={30} onDaysChange={onDaysChange} />
+      </QueryClientProvider>
+    );
+    getByText('7d').click();
+    expect(onDaysChange).toHaveBeenCalledWith(7);
   });
 });

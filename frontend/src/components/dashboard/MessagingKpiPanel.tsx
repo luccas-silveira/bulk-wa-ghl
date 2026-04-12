@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Chart as ChartJS,
@@ -46,8 +46,26 @@ const buildFallbackData = (): MessagingKpiResponse => ({
   breakdown: [],
 });
 
-const MessagingKpiPanel: React.FC = () => {
-  const [range, setRange] = useState<number>(30);
+interface MessagingKpiPanelProps {
+  days?: number;
+  onDaysChange?: (days: number) => void;
+}
+
+const MessagingKpiPanel: React.FC<MessagingKpiPanelProps> = ({ days, onDaysChange }) => {
+  const [localRange, setLocalRange] = useState<number>(days ?? 30);
+
+  useEffect(() => {
+    if (days !== undefined) {
+      setLocalRange(days);
+    }
+  }, [days]);
+
+  const range = days !== undefined ? days : localRange;
+
+  const handleRangeChange = (d: number) => {
+    setLocalRange(d);
+    onDaysChange?.(d);
+  };
 
   const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
     queryKey: ['messaging-kpis', range],
@@ -229,14 +247,14 @@ const MessagingKpiPanel: React.FC = () => {
           <p className="text-sm text-gray-500">Monitoramento de envios, entregas e respostas com atualização automática.</p>
         </div>
         <div className="flex items-center gap-2" data-testid="kpi-range-selector">
-          {[7, 30, 90].map((days) => (
+          {[7, 30, 90].map((d) => (
             <Button
-              key={days}
+              key={d}
               size="sm"
-              variant={range === days ? 'primary' : 'ghost'}
-              onClick={() => setRange(days)}
+              variant={range === d ? 'primary' : 'ghost'}
+              onClick={() => handleRangeChange(d)}
             >
-              {days}d
+              {d}d
             </Button>
           ))}
           <Button

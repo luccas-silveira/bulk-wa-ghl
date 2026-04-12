@@ -217,7 +217,7 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
 
   return (
     <div className="w-full space-y-6">
-      <MessagingKpiPanel />
+      <MessagingKpiPanel days={timeRange} onDaysChange={handleTimeRangeChange} />
 
       {fetchedAt && (
         <p
