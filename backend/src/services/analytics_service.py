@@ -5,7 +5,7 @@ Provides dashboard analytics and metrics for campaigns and messages
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, case, desc
+from sqlalchemy import select, desc
 
 from src.models.campaign import Campaign
 from src.models.message import Message
