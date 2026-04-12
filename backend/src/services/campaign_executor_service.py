@@ -5,8 +5,8 @@ Handles the execution of WhatsApp campaigns through GHL Conversations API
 import asyncio
 import os
 from typing import List, Dict, Optional
-from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone
 import logging
 
@@ -41,12 +41,12 @@ class CampaignExecutorService:
     # Batch commit size: commit to DB every N messages to reduce pool contention
     BATCH_COMMIT_SIZE = 10
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         """
         Initialize campaign executor
 
         Args:
-            db: SQLAlchemy database session
+            db: SQLAlchemy async database session
         """
         self.db = db
         self.conversations_service = GHLConversationsService(db)
@@ -70,7 +70,10 @@ class CampaignExecutorService:
         Returns:
             Dictionary with execution summary
         """
-        campaign = self.db.query(Campaign).filter(Campaign.id == campaign_id).with_for_update().first()
+        c_result = await self.db.execute(
+            select(Campaign).where(Campaign.id == campaign_id).with_for_update()
+        )
+        campaign = c_result.scalar_one_or_none()
         if not campaign:
             raise ValueError(f"Campaign {campaign_id} not found")
 
@@ -79,7 +82,7 @@ class CampaignExecutorService:
 
         # Update campaign status to executing
         campaign.transition_to('executing')
-        self.db.commit()
+        await self.db.commit()
 
         # Get sending delay based on speed
         delay = self.SPEED_DELAYS.get(campaign.sending_speed)
@@ -108,9 +111,10 @@ class CampaignExecutorService:
             # Send messages to each contact
             for idx, contact in enumerate(contacts, 1):
                 # Check if campaign has been paused (with lock to avoid stale read)
-                campaign = self.db.query(Campaign).filter(
-                    Campaign.id == campaign_id
-                ).with_for_update().first()
+                c_result = await self.db.execute(
+                    select(Campaign).where(Campaign.id == campaign_id).with_for_update()
+                )
+                campaign = c_result.scalar_one_or_none()
                 if campaign.status == 'paused':
                     logger.info(f"Campaign {campaign_id} paused, stopping execution")
                     break
@@ -204,7 +208,7 @@ class CampaignExecutorService:
                         finally:
                             _pending_commits += 1
                             if _pending_commits >= self.BATCH_COMMIT_SIZE:
-                                self.db.commit()
+                                await self.db.commit()
                                 _pending_commits = 0
 
                 except Exception as e:
@@ -223,7 +227,7 @@ class CampaignExecutorService:
                         self.db.add(failed_message)
                     _pending_commits += len(messages_template)
                     if _pending_commits >= self.BATCH_COMMIT_SIZE:
-                        self.db.commit()
+                        await self.db.commit()
                         _pending_commits = 0
 
                 # Move to next user in round-robin sequence
@@ -235,11 +239,11 @@ class CampaignExecutorService:
 
             # Flush any remaining uncommitted messages
             if _pending_commits > 0:
-                self.db.commit()
+                await self.db.commit()
                 _pending_commits = 0
 
             # Mark campaign as completed (only if not paused)
-            self.db.refresh(campaign)
+            await self.db.refresh(campaign)
             if campaign.status != 'paused':
                 campaign.transition_to('completed')
                 logger.info(f"Campaign {campaign_id} completed successfully")
@@ -248,15 +252,18 @@ class CampaignExecutorService:
 
         except Exception as e:
             # Mark campaign as failed
-            self.db.rollback()
-            campaign = self.db.query(Campaign).filter(Campaign.id == campaign_id).first()
+            await self.db.rollback()
+            c_result = await self.db.execute(
+                select(Campaign).where(Campaign.id == campaign_id)
+            )
+            campaign = c_result.scalar_one_or_none()
             if campaign:
                 campaign.transition_to('failed')
             logger.error(f"Campaign {campaign_id} failed: {str(e)}")
             raise
 
         finally:
-            self.db.commit()
+            await self.db.commit()
             reset_campaign_context(campaign_token)
 
         return {
@@ -278,16 +285,19 @@ class CampaignExecutorService:
         Returns:
             Dictionary with campaign status and statistics
         """
-        campaign = self.db.query(Campaign).filter(Campaign.id == campaign_id).first()
+        c_result = await self.db.execute(
+            select(Campaign).where(Campaign.id == campaign_id)
+        )
+        campaign = c_result.scalar_one_or_none()
         if not campaign:
             raise ValueError(f"Campaign {campaign_id} not found")
 
-        agg_rows = (
-            self.db.query(Message.status, func.count(Message.id).label("cnt"))
-            .filter(Message.campaign_id == campaign_id)
+        agg_result = await self.db.execute(
+            select(Message.status, func.count(Message.id).label("cnt"))
+            .where(Message.campaign_id == campaign_id)
             .group_by(Message.status)
-            .all()
         )
+        agg_rows = agg_result.all()
 
         status_counts = {'pending': 0, 'sent': 0, 'delivered': 0, 'read': 0, 'failed': 0}
         total = 0
@@ -323,14 +333,14 @@ class CampaignExecutorService:
         Returns:
             List of message dictionaries
         """
-        messages = (
-            self.db.query(Message)
-            .filter(Message.campaign_id == campaign_id)
+        msg_result = await self.db.execute(
+            select(Message)
+            .where(Message.campaign_id == campaign_id)
             .order_by(Message.created_at.desc())
             .limit(limit)
             .offset(offset)
-            .all()
         )
+        messages = msg_result.scalars().all()
 
         return [msg.to_dict() for msg in messages]
 
@@ -344,7 +354,10 @@ class CampaignExecutorService:
             campaign_id, status, resumed_contacts, successful_sends, failed_sends,
             message (optional, early-exit paths only)
         """
-        campaign = self.db.query(Campaign).filter(Campaign.id == campaign_id).with_for_update().first()
+        c_result = await self.db.execute(
+            select(Campaign).where(Campaign.id == campaign_id).with_for_update()
+        )
+        campaign = c_result.scalar_one_or_none()
         if not campaign:
             raise ValueError(f'Campaign {campaign_id} not found')
 
@@ -352,7 +365,7 @@ class CampaignExecutorService:
         if not campaign.contacts_data or not campaign.messages_template:
             logger.warning(f'Campaign {campaign_id} has no persisted data, marking as completed')
             campaign.transition_to('completed')
-            self.db.commit()
+            await self.db.commit()
             return {
                 'campaign_id': campaign_id,
                 'status': 'completed',
@@ -364,12 +377,12 @@ class CampaignExecutorService:
 
         # Find phones that already received messages
         sent_phones = set()
-        existing_messages = (
-            self.db.query(Message.recipient_phone)
-            .filter(Message.campaign_id == campaign_id)
-            .filter(Message.status.in_(['sent', 'delivered', 'read']))
-            .all()
+        existing_msg_result = await self.db.execute(
+            select(Message.recipient_phone)
+            .where(Message.campaign_id == campaign_id)
+            .where(Message.status.in_(['sent', 'delivered', 'read']))
         )
+        existing_messages = existing_msg_result.all()
         for (phone,) in existing_messages:
             sent_phones.add(phone)
 
@@ -382,7 +395,7 @@ class CampaignExecutorService:
         if not remaining_contacts:
             logger.info(f'Campaign {campaign_id}: all contacts already sent, marking completed')
             campaign.transition_to('completed')
-            self.db.commit()
+            await self.db.commit()
             return {
                 'campaign_id': campaign_id,
                 'status': 'completed',
