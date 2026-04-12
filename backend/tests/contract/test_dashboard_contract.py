@@ -442,3 +442,4 @@ class TestDashboardTimeout:
         assert response.status_code == 504
         data = response.json()
         assert "detail" in data
+        assert "timeout" in data["detail"].lower()

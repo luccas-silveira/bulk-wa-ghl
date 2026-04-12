@@ -29,6 +29,8 @@ async def get_dashboard(
     """
 
     async def _gather_all():
+        # Sequential awaits share one AsyncSession — asyncio.gather() with
+        # a shared session would risk re-entrancy issues on the same connection.
         campaign_metrics = await analytics_service.get_campaign_metrics(
             db=db, ghl_user_id=ghl_user_id, days=days
         )
