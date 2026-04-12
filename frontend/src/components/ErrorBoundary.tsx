@@ -1,4 +1,5 @@
 import React from 'react';
+import { Sentry } from '../config/sentry';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -21,6 +22,19 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
+    Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
+  }
+
+  private handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+    Sentry.captureException(event.reason ?? new Error('Unhandled promise rejection'));
+  };
+
+  componentDidMount() {
+    window.addEventListener('unhandledrejection', this.handleUnhandledRejection);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('unhandledrejection', this.handleUnhandledRejection);
   }
 
   handleReload = () => {
@@ -31,7 +45,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+          <div className="max-w-md w-full bg-white rounded-lg shadow-ghl-lg p-8 text-center">
             <div className="text-red-500 text-5xl mb-4">!</div>
             <h1 className="text-xl font-semibold text-gray-900 mb-2">
               Algo deu errado

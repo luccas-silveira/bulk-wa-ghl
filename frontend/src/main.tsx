@@ -12,6 +12,9 @@ import { ToastProvider, useToast } from './components/ui/Toast'
 import { CampaignCreateRequest } from './types/api'
 import { API_BASE_URL } from './config/env'
 import './index.css'
+import { initSentry } from './config/sentry'
+
+initSentry()
 
 // Create a client for React Query
 const queryClient = new QueryClient({
