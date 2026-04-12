@@ -33,6 +33,10 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({ campaignId, onClose }
   const { data, isLoading, error } = useQuery({
     queryKey: ['campaign', campaignId],
     queryFn: () => campaignService.getCampaignDetails(campaignId),
+    refetchInterval: (query: import('@tanstack/react-query').Query) => {
+      const status = query.state.data?.campaign.status;
+      return status === 'executing' ? 5000 : false;
+    },
   });
 
   // Pause mutation
