@@ -3,7 +3,7 @@
  * Displays a list of campaigns with filtering, pagination, and actions
  */
 import React, { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, QueryKey } from '@tanstack/react-query';
 import { Search, Filter, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import Card from '../ui/Card';
 import Button from '../ui/Button';
@@ -51,7 +51,7 @@ const CampaignList: React.FC<CampaignListProps> = ({
     mutationFn: (campaignId: number) => campaignService.pauseCampaign(campaignId),
     onMutate: async (campaignId) => {
       await queryClient.cancelQueries({ queryKey: ['campaigns'] });
-      const queryKey = ['campaigns', debouncedFilters, limit, page] as const;
+      const queryKey: QueryKey = ['campaigns', debouncedFilters, limit, page];
       const previous = queryClient.getQueryData<CampaignsListResponse>(queryKey);
       queryClient.setQueryData<CampaignsListResponse>(queryKey, (old) => {
         if (!old) return old;
@@ -66,7 +66,7 @@ const CampaignList: React.FC<CampaignListProps> = ({
     },
     onError: (_err, _id, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(context.queryKey as readonly unknown[], context.previous);
+        queryClient.setQueryData(context.queryKey, context.previous);
       }
     },
     onSettled: () => {
@@ -79,7 +79,7 @@ const CampaignList: React.FC<CampaignListProps> = ({
     mutationFn: (campaignId: number) => campaignService.resumeCampaign(campaignId),
     onMutate: async (campaignId) => {
       await queryClient.cancelQueries({ queryKey: ['campaigns'] });
-      const queryKey = ['campaigns', debouncedFilters, limit, page] as const;
+      const queryKey: QueryKey = ['campaigns', debouncedFilters, limit, page];
       const previous = queryClient.getQueryData<CampaignsListResponse>(queryKey);
       queryClient.setQueryData<CampaignsListResponse>(queryKey, (old) => {
         if (!old) return old;
@@ -94,7 +94,7 @@ const CampaignList: React.FC<CampaignListProps> = ({
     },
     onError: (_err, _id, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(context.queryKey as readonly unknown[], context.previous);
+        queryClient.setQueryData(context.queryKey, context.previous);
       }
     },
     onSettled: () => {
@@ -107,7 +107,7 @@ const CampaignList: React.FC<CampaignListProps> = ({
     mutationFn: (campaignId: number) => campaignService.deleteCampaign(campaignId),
     onMutate: async (campaignId) => {
       await queryClient.cancelQueries({ queryKey: ['campaigns'] });
-      const queryKey = ['campaigns', debouncedFilters, limit, page] as const;
+      const queryKey: QueryKey = ['campaigns', debouncedFilters, limit, page];
       const previous = queryClient.getQueryData<CampaignsListResponse>(queryKey);
       queryClient.setQueryData<CampaignsListResponse>(queryKey, (old) => {
         if (!old) return old;
@@ -121,7 +121,7 @@ const CampaignList: React.FC<CampaignListProps> = ({
     },
     onError: (_err, _id, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(context.queryKey as readonly unknown[], context.previous);
+        queryClient.setQueryData(context.queryKey, context.previous);
       }
     },
     onSettled: () => {
