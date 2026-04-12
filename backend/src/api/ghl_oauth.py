@@ -10,7 +10,8 @@ import json
 import base64
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from pydantic import BaseModel
 
 from src.database import get_db
@@ -59,7 +60,7 @@ class OAuthCallbackRequest(BaseModel):
 
 
 @router.get("/authorize")
-async def oauth_authorize(db: Session = Depends(get_db)):
+async def oauth_authorize(db: AsyncSession = Depends(get_db)):
     """Initiate OAuth authorization flow. Generates CSRF state server-side."""
     state = _generate_oauth_state()
     oauth_service = GHLOAuthService(db)
@@ -71,7 +72,7 @@ async def oauth_authorize(db: Session = Depends(get_db)):
 async def oauth_callback(
     code: str = Query(..., description="Authorization code from GHL"),
     state: str | None = Query(None, description="CSRF state parameter"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """Handle OAuth callback. Validates CSRF state before processing."""
     if not state or not _verify_oauth_state(state):
@@ -84,9 +85,10 @@ async def oauth_callback(
 
         location_id = token_data["location_id"]
 
-        location = db.query(GHLLocation).filter(
-            GHLLocation.ghl_location_id == location_id
-        ).first()
+        result = await db.execute(
+            select(GHLLocation).where(GHLLocation.ghl_location_id == location_id)
+        )
+        location = result.scalar_one_or_none()
 
         if not location:
             location = GHLLocation(
@@ -98,8 +100,8 @@ async def oauth_callback(
                 whatsapp_status="pending"
             )
             db.add(location)
-            db.commit()
-            db.refresh(location)
+            await db.commit()
+            await db.refresh(location)
 
         return {
             "success": True,
@@ -117,7 +119,7 @@ async def oauth_callback(
 @router.post("/refresh/{location_id}")
 async def refresh_oauth_token(
     location_id: str,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Manually refresh OAuth token for a location
@@ -154,7 +156,7 @@ async def refresh_oauth_token(
 @router.delete("/revoke/{location_id}")
 async def revoke_oauth_token(
     location_id: str,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Revoke OAuth token for a location

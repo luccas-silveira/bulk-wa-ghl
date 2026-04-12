@@ -14,7 +14,6 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 
 from src.services.token_encryption_service import TokenEncryptionService
 from src.models.ghl_oauth_token import GHLOAuthToken
-from src.models.ghl_location import GHLLocation
 
 load_dotenv()
 
