@@ -19,7 +19,7 @@ import CampaignStatusBadge from './CampaignStatusBadge';
 import MessageStatusBadge from './MessageStatusBadge';
 import CampaignActions from './CampaignActions';
 import { campaignService } from '../../services/campaign-service';
-import type { MessageStatus } from '../../types/campaign';
+import type { MessageStatus, CampaignDetailsResponse } from '../../types/campaign';
 
 export interface CampaignDetailsProps {
   campaignId: number;
@@ -33,7 +33,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({ campaignId, onClose }
   const { data, isLoading, error } = useQuery({
     queryKey: ['campaign', campaignId],
     queryFn: () => campaignService.getCampaignDetails(campaignId),
-    refetchInterval: (query: Query) => {
+    refetchInterval: (query: Query<CampaignDetailsResponse>) => {
       const status = query.state.data?.campaign.status;
       return status === 'executing' ? 5000 : false;
     },
