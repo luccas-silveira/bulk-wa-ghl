@@ -409,3 +409,36 @@ class TestDashboardContract:
 
         # Error schema from contract (FastAPI validation includes detail)
         assert "detail" in data
+
+
+@pytest.mark.asyncio
+class TestDashboardTimeout:
+    """ANA-17: dashboard must return 504 when analytics takes too long."""
+
+    async def test_returns_504_on_timeout(self, async_client: AsyncClient):
+        import asyncio
+        from unittest.mock import MagicMock
+        from src.main import app
+        from src.database import get_db
+
+        # Simulate a slow DB session — execute sleeps forever
+        mock_db = MagicMock()
+        async def slow_execute(*args, **kwargs):
+            await asyncio.sleep(60)  # longer than the 5 s timeout
+        mock_db.execute = slow_execute
+
+        async def override_get_db():
+            yield mock_db
+
+        app.dependency_overrides[get_db] = override_get_db
+        try:
+            response = await async_client.get(
+                "/api/v1/analytics/dashboard",
+                timeout=15.0,
+            )
+        finally:
+            app.dependency_overrides.clear()
+
+        assert response.status_code == 504
+        data = response.json()
+        assert "detail" in data
