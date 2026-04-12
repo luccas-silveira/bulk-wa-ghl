@@ -5,7 +5,7 @@ Provides dashboard analytics and metrics for campaigns and messages
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, case, desc
 
 from src.models.campaign import Campaign
 from src.models.message import Message
@@ -77,36 +77,54 @@ async def get_recent_campaigns(
     days: int = 30,
     limit: int = 5
 ) -> List[Dict]:
+    """Return recent campaigns with delivery stats — single JOIN query (ANA-04)."""
     date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
-    stmt = select(Campaign).where(Campaign.created_at >= date_threshold)
+    delivered_statuses = ("delivered", "read")
+    msg_subq = (
+        select(
+            Message.campaign_id,
+            func.count(Message.id).label("total"),
+            func.sum(
+                case((Message.status.in_(delivered_statuses), 1), else_=0)
+            ).label("delivered"),
+        )
+        .where(Message.sent_at.isnot(None))
+        .group_by(Message.campaign_id)
+        .subquery("msg_stats")
+    )
+
+    stmt = (
+        select(
+            Campaign.id,
+            Campaign.name,
+            Campaign.status,
+            Campaign.created_at,
+            func.coalesce(msg_subq.c.total, 0).label("total"),
+            func.coalesce(msg_subq.c.delivered, 0).label("delivered"),
+        )
+        .outerjoin(msg_subq, Campaign.id == msg_subq.c.campaign_id)
+        .where(Campaign.created_at >= date_threshold)
+    )
     if ghl_user_id:
         stmt = stmt.where(Campaign.ghl_user_id == ghl_user_id)
-    stmt = stmt.order_by(desc(Campaign.created_at)).limit(limit)
+    stmt = stmt.order_by(Campaign.created_at.desc()).limit(limit)
 
-    result = await db.execute(stmt)
-    campaigns = result.scalars().all()
-
-    out = []
-    for campaign in campaigns:
-        msgs_result = await db.execute(
-            select(Message).where(
-                Message.campaign_id == campaign.id,
-                Message.sent_at.isnot(None),
-            )
-        )
-        messages = msgs_result.scalars().all()
-        total_messages = len(messages)
-        delivered = sum(1 for m in messages if m.status in ('delivered', 'read'))
-        out.append({
-            'id': campaign.id,
-            'name': campaign.name,
-            'status': campaign.status,
-            'delivery_rate': round(delivered / total_messages * 100, 1) if total_messages > 0 else 0.0,
-            'created_at': campaign.created_at.isoformat(),
-            'messages_sent': total_messages,
+    rows = (await db.execute(stmt)).all()
+    result = []
+    for row in rows:
+        total = row.total or 0
+        delivered = row.delivered or 0
+        rate = round((delivered / total) * 100, 1) if total > 0 else 0.0
+        result.append({
+            "id": row.id,
+            "name": row.name,
+            "status": row.status,
+            "delivery_rate": rate,
+            "created_at": row.created_at.isoformat(),
+            "messages_sent": total,
         })
-    return out
+    return result
 
 
 async def get_top_campaigns(

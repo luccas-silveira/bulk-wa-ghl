@@ -1026,3 +1026,45 @@ class TestGetCampaignMetricsSingleQuery:
         for key in ("draft_campaigns", "scheduled_campaigns", "active_campaigns",
                     "completed_campaigns", "failed_campaigns", "cancelled_campaigns"):
             assert metrics[key] == 0
+
+
+@pytest.mark.asyncio
+class TestGetRecentCampaignsNoN1:
+    """ANA-04: get_recent_campaigns must fetch all message stats in one query."""
+
+    async def test_single_execute_call_for_five_campaigns(self, db_session):
+        from unittest.mock import patch, AsyncMock, MagicMock
+        from datetime import datetime
+
+        now = datetime.utcnow()
+        rows = [
+            MagicMock(id=i, name=f"Camp {i}", status="completed",
+                      created_at=now, total=10, delivered=8)
+            for i in range(1, 6)
+        ]
+        fake_result = MagicMock()
+        fake_result.all.return_value = rows
+
+        with patch.object(db_session, "execute", new_callable=AsyncMock) as mock_exec:
+            mock_exec.return_value = fake_result
+            campaigns = await get_recent_campaigns(db_session)
+
+        assert mock_exec.call_count == 1, (
+            f"Expected 1 execute call, got {mock_exec.call_count} — N+1 present"
+        )
+        assert len(campaigns) == 5
+        assert campaigns[0]["delivery_rate"] == 80.0
+
+    async def test_zero_messages_gives_zero_delivery_rate(self, db_session):
+        from unittest.mock import patch, AsyncMock, MagicMock
+        from datetime import datetime
+
+        now = datetime.utcnow()
+        rows = [MagicMock(id=1, name="Empty", status="completed",
+                          created_at=now, total=0, delivered=0)]
+        fake_result = MagicMock()
+        fake_result.all.return_value = rows
+        with patch.object(db_session, "execute", new_callable=AsyncMock) as mock_exec:
+            mock_exec.return_value = fake_result
+            campaigns = await get_recent_campaigns(db_session)
+        assert campaigns[0]["delivery_rate"] == 0.0
