@@ -133,39 +133,57 @@ async def get_top_campaigns(
     days: int = 30,
     limit: int = 10
 ) -> List[Dict]:
+    """Return top-performing campaigns — single JOIN query (ANA-05)."""
     date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
-    stmt = select(Campaign).where(Campaign.created_at >= date_threshold)
+    delivered_statuses = ("delivered", "read")
+    msg_subq = (
+        select(
+            Message.campaign_id,
+            func.count(Message.id).label("total"),
+            func.sum(
+                case((Message.status.in_(delivered_statuses), 1), else_=0)
+            ).label("delivered"),
+            func.sum(
+                case((Message.status == "read", 1), else_=0)
+            ).label("reads"),
+        )
+        .where(Message.sent_at.isnot(None))
+        .group_by(Message.campaign_id)
+        .subquery("top_msg_stats")
+    )
+
+    stmt = (
+        select(
+            Campaign.id,
+            Campaign.name,
+            msg_subq.c.delivered.label("delivered"),
+            msg_subq.c.total.label("total"),
+            msg_subq.c.reads.label("reads"),
+        )
+        .join(msg_subq, Campaign.id == msg_subq.c.campaign_id)  # inner join: excludes 0-msg campaigns
+        .where(Campaign.created_at >= date_threshold)
+    )
     if ghl_user_id:
         stmt = stmt.where(Campaign.ghl_user_id == ghl_user_id)
+    stmt = stmt.order_by(msg_subq.c.reads.desc(), msg_subq.c.delivered.desc()).limit(limit)
 
-    result = await db.execute(stmt)
-    campaigns = result.scalars().all()
-
-    campaign_metrics = []
-    for campaign in campaigns:
-        msgs_result = await db.execute(
-            select(Message).where(
-                Message.campaign_id == campaign.id,
-                Message.sent_at.isnot(None),
-            )
-        )
-        messages = msgs_result.scalars().all()
-        total = len(messages)
-        if total == 0:
-            continue
-        delivered = sum(1 for m in messages if m.status in ('delivered', 'read'))
-        read = sum(1 for m in messages if m.status == 'read')
-        campaign_metrics.append({
-            'id': campaign.id,
-            'name': campaign.name,
-            'delivered_count': delivered,
-            'delivery_rate': round(delivered / total * 100, 1),
-            'read_rate': round(read / total * 100, 1),
+    rows = (await db.execute(stmt)).all()
+    result = []
+    for row in rows:
+        total = row.total
+        delivered = row.delivered
+        reads = row.reads
+        delivery_rate = round((delivered / total) * 100, 1) if total > 0 else 0.0
+        read_rate = round((reads / total) * 100, 1) if total > 0 else 0.0
+        result.append({
+            "id": row.id,
+            "name": row.name,
+            "delivered_count": delivered,
+            "delivery_rate": delivery_rate,
+            "read_rate": read_rate,
         })
-
-    campaign_metrics.sort(key=lambda x: (x['read_rate'], x['delivery_rate']), reverse=True)
-    return campaign_metrics[:limit]
+    return result
 
 
 async def get_delivery_timeline(

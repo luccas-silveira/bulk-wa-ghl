@@ -912,6 +912,38 @@ class TestGetTopCampaigns:
 
 
 @pytest.mark.asyncio
+class TestGetTopCampaignsNoN1:
+    """ANA-05: get_top_campaigns must fetch all stats in one query."""
+
+    async def test_single_execute_call(self, db_session):
+        from unittest.mock import patch, AsyncMock, MagicMock
+
+        rows = [
+            MagicMock(id=i, name=f"Top {i}", delivered=90, total=100, reads=70)
+            for i in range(1, 4)
+        ]
+        fake_result = MagicMock()
+        fake_result.all.return_value = rows
+        with patch.object(db_session, "execute", new_callable=AsyncMock) as mock_exec:
+            mock_exec.return_value = fake_result
+            campaigns = await get_top_campaigns(db_session)
+        assert mock_exec.call_count == 1
+        assert campaigns[0]["delivery_rate"] == 90.0
+        assert campaigns[0]["read_rate"] == 70.0
+
+    async def test_read_rate_calculation(self, db_session):
+        from unittest.mock import patch, AsyncMock, MagicMock
+
+        rows = [MagicMock(id=1, name="C1", delivered=10, total=10, reads=5)]
+        fake_result = MagicMock()
+        fake_result.all.return_value = rows
+        with patch.object(db_session, "execute", new_callable=AsyncMock) as mock_exec:
+            mock_exec.return_value = fake_result
+            campaigns = await get_top_campaigns(db_session)
+        assert campaigns[0]["read_rate"] == 50.0
+
+
+@pytest.mark.asyncio
 class TestGetDeliveryTimeline:
     """ANA-01: timeline data for dashboard charts"""
 
