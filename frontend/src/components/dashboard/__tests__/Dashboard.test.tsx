@@ -77,7 +77,10 @@ describe('Dashboard', () => {
       json: async () => mockDashboardData,
     });
     render(<Dashboard />);
-    await waitFor(() => expect(screen.queryByText(/No campaigns yet/i)).not.toBeInTheDocument());
+    await waitFor(() => {
+      expect(screen.queryByText(/No campaigns yet/i)).not.toBeInTheDocument();
+      expect(screen.getByTestId('campaign-status-chart')).toBeInTheDocument();
+    });
   });
 
   it('shows error when fetch fails', async () => {

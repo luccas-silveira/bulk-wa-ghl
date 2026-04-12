@@ -72,12 +72,38 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
     }
   }, []);
 
+  // Generate chart data from metrics (must be above early returns — Rules of Hooks)
+  const chartData = useMemo(() => {
+    if (!metrics) return null;
+    return {
+      campaignStatus: {
+        sent: metrics.delivery_metrics.sent,
+        delivered: metrics.delivery_metrics.delivered,
+        read: Math.floor(metrics.delivery_metrics.sent * (metrics.delivery_metrics.read_rate / 100)),
+        failed: metrics.delivery_metrics.failed,
+      },
+      deliveryRate: {
+        labels: metrics.timeline?.labels ?? [],
+        deliveryRate: metrics.timeline?.delivery_rate ?? [],
+        readRate: metrics.timeline?.read_rate ?? [],
+      },
+      volume: {
+        labels: metrics.timeline?.labels ?? [],
+        sent: metrics.timeline?.sent ?? [],
+        delivered: metrics.timeline?.delivered ?? [],
+      },
+    };
+  }, [metrics]);
+
   // Load dashboard data on component mount
   useEffect(() => {
     fetchDashboardData({
       ghl_user_id: userFilter || undefined,
       days: timeRange,
     });
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [userFilter, timeRange, fetchDashboardData]);
 
   // Handle user filter change
@@ -155,26 +181,6 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
     );
   }
 
-  // Generate chart data from metrics
-  const chartData = useMemo(() => ({
-    campaignStatus: {
-      sent: metrics?.delivery_metrics.sent || 0,
-      delivered: Math.floor((metrics?.delivery_metrics.sent || 0) * (metrics?.delivery_metrics.delivery_rate || 0) / 100),
-      read: Math.floor((metrics?.delivery_metrics.sent || 0) * (metrics?.delivery_metrics.read_rate || 0) / 100),
-      failed: Math.floor((metrics?.delivery_metrics.sent || 0) * (1 - (metrics?.delivery_metrics.delivery_rate || 0) / 100))
-    },
-    deliveryRate: {
-      labels: metrics?.timeline?.labels ?? [],
-      deliveryRate: metrics?.timeline?.delivery_rate ?? [],
-      readRate: metrics?.timeline?.read_rate ?? []
-    },
-    volume: {
-      labels: metrics?.timeline?.labels ?? [],
-      sent: metrics?.timeline?.sent ?? [],
-      delivered: metrics?.timeline?.delivered ?? []
-    }
-  }), [metrics]);
-
   return (
     <div className="w-full space-y-6">
       <MessagingKpiPanel />
@@ -218,18 +224,18 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
         {/* Top Row Charts */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <CampaignStatusChart
-            data={chartData.campaignStatus}
+            data={chartData!.campaignStatus}
             loading={loading}
           />
           <DeliveryRateChart
-            data={chartData.deliveryRate}
+            data={chartData!.deliveryRate}
             loading={loading}
           />
         </div>
 
         {/* Volume Chart - Full Width */}
         <VolumeMetricsChart
-          data={chartData.volume}
+          data={chartData!.volume}
           loading={loading}
         />
       </div>
