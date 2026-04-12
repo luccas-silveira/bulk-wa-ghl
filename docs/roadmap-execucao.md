@@ -2,7 +2,7 @@
 
 **Propósito:** rastreamento operacional do [plano mestre](plano-implementacao-mestre.md).
 **Fonte da verdade descritiva:** `plano-implementacao-mestre.md` contém descrição detalhada de cada item (arquivo, linha, ação específica, critérios de conclusão). Este documento só rastreia status e serve como painel executável.
-**Última atualização:** 2026-04-12 (EPIC-14 Fase 2 concluído — 160/172 itens; Fase 2: 47/52)
+**Última atualização:** 2026-04-12 (EPIC-16 marcado completo — 164/172 itens; Fase 2: 51/52)
 **Branch ativa:** `004-campaign-management`
 
 ---
@@ -20,9 +20,9 @@
 |------|----------|-----------------|------:|-----------:|
 | **0** — Bloqueadores de produção | Sistema deployável, seguro, timezone correto, secrets validados, pool controlado, dashboard sem dados fake | EPIC-01, 02, 03, 04, 05 (críticos/altos), 06 (validadores), 11 (ANA-01/02/03) | 41 | 41 |
 | **1** — Estabilidade e segurança | State machine, webhooks idempotentes, telefone E.164, router frontend, UI crítica, infra de deploy, observabilidade | EPIC-05 (resto), 06 (resto), 07, 08, 09, 12, 13 (críticos), 14 (críticos/altos), 15, 17 | 73 | 66 |
-| **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 47 |
+| **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 51 |
 | **Fora de fase** | EPIC-18 Opção B (remoção WAHA) + RAIZ-09 (endpoint createCampaign) | EPIC-18, RAIZ-09 | 6 | 6 |
-| **Total** | | | **172** | **160** |
+| **Total** | | | **172** | **164** |
 
 **Notas sobre contagem:**
 - **Fase 3 (Polish e Backlog)** não aparece como linha separada: os itens de severidade Baixa que o plano mestre consolida em Fase 3 aqui ficam dentro de seus EPICs originais nas Fases 1 e 2, para evitar duplicação.
@@ -32,7 +32,7 @@
 
 ## Próximo passo recomendado
 
-**Fase 0 concluída (41/41). Fase 1 concluída (66/66). Fase 2 em andamento (47/52).** EPIC-10 concluído (2026-04-12). EPIC-11 concluído (2026-04-12). EPIC-13 concluído (2026-04-12). EPIC-14 concluído (2026-04-12). Próximo: EPIC-16 (Nginx/SSL endurecido — 4 itens: INFRA-25, 26, 27, 28).
+**Fase 0 concluída (41/41). Fase 1 concluída (66/66). Fase 2 em andamento (51/52).** EPIC-10 concluído (2026-04-12). EPIC-11 concluído (2026-04-12). EPIC-13 concluído (2026-04-12). EPIC-14 concluído (2026-04-12). EPIC-16 concluído (já implementado em EPIC-15/PR-5). Fase 2 quase completa: 1 item restante — **PERS-25** (AsyncSession + asyncpg), planejado em PR separado por alto risco de refatoração.
 
 **PERS-25** (AsyncSession + asyncpg) está pendente do EPIC-05 — planejado em PR separado; impacto alto mas isolável.
 
@@ -345,12 +345,12 @@ Critérios de saída (plano mestre, linha 612):
 - [x] **CAMP-27** — `.filter()` antes do `.map()` na paginação em `CampaignList.tsx:278-292` (Baixo)
 
 ### EPIC-16 — Nginx, SSL e Headers de Segurança
-**Dependências:** nenhuma • **Itens:** 4 • **Concluídos:** 0
+**Dependências:** nenhuma • **Itens:** 4 • **Concluídos:** 4 • **Status:** ✅ Concluído (já implementado em EPIC-15/PR-5)
 
-- [ ] **INFRA-25** — `ssl_prefer_server_ciphers on` em `nginx/sites-available/wpp-disp.conf:34` (Baixo)
-- [ ] **INFRA-26** — CSP `connect-src` com domínios externos necessários em `nginx/nginx.conf:45` (Baixo)
-- [ ] **INFRA-27** — Headers de segurança explícitos no server block em `nginx/sites-available/wpp-disp.conf:38-46` (Baixo)
-- [ ] **INFRA-28** — Adicionar `ssl_stapling on` em `nginx/sites-available/wpp-disp.conf` (Baixo)
+- [x] **INFRA-25** — `ssl_prefer_server_ciphers on` em `nginx/sites-available/wpp-disp.conf:34` (Baixo)
+- [x] **INFRA-26** — CSP `connect-src` com domínios externos necessários em `nginx/nginx.conf:45` (Baixo)
+- [x] **INFRA-27** — Headers de segurança explícitos no server block em `nginx/sites-available/wpp-disp.conf:38-46` (Baixo)
+- [x] **INFRA-28** — Adicionar `ssl_stapling on` em `nginx/sites-available/wpp-disp.conf` (Baixo)
 
 ---
 
@@ -392,3 +392,4 @@ Este não é um EPIC por si, mas um problema raiz transversal listado no plano m
 | 2026-04-11 | Fase 1 concluída (66/66). 6 PRs mergeados em `004-campaign-management`: PR-1 (EPIC-06 State Machine), PR-2 (EPIC-07 Execução + EPIC-08 Webhooks), PR-3 (EPIC-09 E.164 + EPIC-13 UI críticos), PR-4 (EPIC-05 resto + EPIC-17 Observabilidade), PR-5 (EPIC-15 Infra/Deploy/Backup), PR-6 (EPIC-12 React Router + EPIC-14 Wizard + RAIZ-09). | PRs mergeados |
 | 2026-04-12 | EPIC-13 concluído (14/15 — FRONT-20 dead, Sidebar deletado). 14 itens: Toast ARIA+FIFO, Card keyboard nav, Button/Badge/Input a11y, Sentry integration, shadow-ghl-lg, skip link, darkMode. Fase 2: 39/52. Total: 152/172. | Subagent-Driven Development |
 | 2026-04-12 | EPIC-14 Fase 2 concluído (8/8). FRONT-26/27/28/30/33/34, CAMP-26/27: erro limpo ao voltar no wizard, foco no heading, localStorage para column mapping, spinner no submit, optimistic updates na CampaignList, refetchInterval condicional, modal de confirmação com nome da campanha. TypeScript fix: `Query<CampaignDetailsResponse>`. 83/83 testes passando. Fase 2: 47/52. Total: 160/172. | Subagent-Driven Development |
+| 2026-04-12 | EPIC-16 marcado completo — todos os 4 itens (INFRA-25/26/27/28) já estavam implementados em EPIC-15/PR-5. Nenhum trabalho adicional necessário. Fase 2: 51/52 (só PERS-25 pendente). Total: 164/172. | Auditoria de código |
