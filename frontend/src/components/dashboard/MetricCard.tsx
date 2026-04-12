@@ -12,6 +12,7 @@ export interface MetricCardProps {
   icon?: React.ReactNode;
   loading?: boolean;
   className?: string;
+  period?: string;
 }
 
 const MetricCard: React.FC<MetricCardProps> = ({
@@ -24,6 +25,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
   icon,
   loading = false,
   className,
+  period,
 }) => {
   const formatValue = (val: string | number): string => {
     if (typeof val === 'string') return val;
@@ -125,7 +127,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
 
         {/* Period indicator */}
         <div className="mt-2 text-xs text-gray-400">
-          Últimos 30 dias
+          {period ?? 'Últimos 30 dias'}
         </div>
       </div>
     </Card>

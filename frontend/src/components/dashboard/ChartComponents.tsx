@@ -135,7 +135,7 @@ export const CampaignStatusChart: React.FC<CampaignStatusChartProps> = ({
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
           Status das Campanhas
         </h3>
-        <div className="w-full h-64 max-h-96">
+        <div className="w-full h-64 max-h-96" role="img" aria-label="Gráfico de status das campanhas">
           <Doughnut data={chartData} options={options} />
         </div>
       </div>
@@ -243,7 +243,7 @@ export const DeliveryRateChart: React.FC<DeliveryRateChartProps> = ({
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
           Taxa de Entrega e Leitura
         </h3>
-        <div className="w-full h-64 max-h-96">
+        <div className="w-full h-64 max-h-96" role="img" aria-label="Gráfico de taxa de entrega e leitura">
           <Line data={chartData} options={options} />
         </div>
       </div>
@@ -340,7 +340,7 @@ export const VolumeMetricsChart: React.FC<VolumeMetricsChartProps> = ({
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
           Volume de Mensagens
         </h3>
-        <div className="w-full h-64 max-h-96">
+        <div className="w-full h-64 max-h-96" role="img" aria-label="Gráfico de volume de mensagens">
           <Bar data={chartData} options={options} />
         </div>
       </div>
