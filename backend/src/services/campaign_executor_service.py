@@ -15,6 +15,7 @@ from src.models.message import Message
 from src.services.ghl_conversations_service import GHLConversationsService, RateLimitExceeded
 from src.services.ghl_contacts_service import GHLContactsService
 from src.logging_config import reset_campaign_context, set_campaign_context
+from src.metrics import messages_sent_total, campaigns_active_gauge
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,7 @@ class CampaignExecutorService:
         user_index = start_user_index  # Resume from correct position in round-robin (CAMP-04)
         _pending_commits = 0  # batch commit counter
 
+        campaigns_active_gauge.inc()
         try:
             # Send messages to each contact
             for idx, contact in enumerate(contacts, 1):
@@ -169,6 +171,7 @@ class CampaignExecutorService:
                             message.ghl_conversation_id = result.get('conversationId')
                             message.ghl_status = result.get('status')
                             successful_sends += 1
+                            messages_sent_total.labels(status='sent').inc()
                             logger.info(f'✓ Message sent successfully to {phone_number}')
 
                         except RateLimitExceeded:
@@ -191,11 +194,13 @@ class CampaignExecutorService:
                                 message.ghl_conversation_id = result.get('conversationId')
                                 message.ghl_status = result.get('status')
                                 successful_sends += 1
+                                messages_sent_total.labels(status='sent').inc()
                                 logger.info(f'✓ Message sent on retry to {phone_number}')
                             except Exception as retry_err:
                                 message.status = 'failed'
                                 message.error_message = f'Rate limit retry failed: {retry_err}'
                                 failed_sends += 1
+                                messages_sent_total.labels(status='failed').inc()
                                 logger.error(f'✗ Retry also failed for {phone_number}: {retry_err}')
 
                         except Exception as e:
@@ -203,6 +208,7 @@ class CampaignExecutorService:
                             message.status = 'failed'
                             message.error_message = str(e)
                             failed_sends += 1
+                            messages_sent_total.labels(status='failed').inc()
                             logger.error(f'✗ Failed to send to {phone_number}: {str(e)}')
 
                         finally:
@@ -263,6 +269,7 @@ class CampaignExecutorService:
             raise
 
         finally:
+            campaigns_active_gauge.dec()
             await self.db.commit()
             reset_campaign_context(campaign_token)
 

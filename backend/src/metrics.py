@@ -23,6 +23,17 @@ campaign_queue_gauge = Gauge(
     "Number of campaigns queued for execution",
 )
 
+messages_sent_total = Counter(
+    "messages_sent_total",
+    "Total messages sent by the campaign executor",
+    ["status"],  # status: sent | failed
+)
+
+campaigns_active_gauge = Gauge(
+    "campaigns_active",
+    "Number of campaigns currently in executing state",
+)
+
 # --- Pool metrics (updated on each /metrics scrape) ---
 db_pool_size_gauge = Gauge(
     "db_pool_size",
