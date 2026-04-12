@@ -213,9 +213,10 @@ const Toast: React.FC<{ toast: ToastData }> = ({ toast }) => {
           {/* Close Button */}
           <button
             onClick={handleClose}
+            aria-label="Fechar notificação"
             className="flex-shrink-0 ml-2 p-1 rounded-md hover:bg-black hover:bg-opacity-10 transition-colors duration-150"
           >
-            <X className="w-4 h-4" />
+            <X aria-hidden="true" className="w-4 h-4" />
           </button>
         </div>
 

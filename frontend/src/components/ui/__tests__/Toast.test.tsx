@@ -80,7 +80,7 @@ describe('ToastProvider — memory leak fix (FRONT-08)', () => {
     expect(screen.getByText('Test toast')).toBeInTheDocument();
 
     // Clicar no botão de fechar (X)
-    const closeBtn = screen.getByRole('button', { name: '' });
+    const closeBtn = screen.getByRole('button', { name: 'Fechar notificação' });
     // O botão X existe dentro do toast; avançamos a animação de saída
     await user.click(closeBtn);
     act(() => { jest.advanceTimersByTime(200); });
