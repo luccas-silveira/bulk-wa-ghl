@@ -11,7 +11,7 @@ import Input from '../ui/Input';
 import CampaignStatusBadge from './CampaignStatusBadge';
 import CampaignActions from './CampaignActions';
 import { campaignService } from '../../services/campaign-service';
-import type { CampaignFilters, CampaignStatus } from '../../types/campaign';
+import type { CampaignFilters, CampaignStatus, CampaignsListResponse } from '../../types/campaign';
 
 export interface CampaignListProps {
   defaultFilters?: CampaignFilters;
@@ -46,26 +46,85 @@ const CampaignList: React.FC<CampaignListProps> = ({
     staleTime: 30000,
   });
 
-  // Pause mutation
+  // Pause mutation with optimistic update
   const pauseMutation = useMutation({
     mutationFn: (campaignId: number) => campaignService.pauseCampaign(campaignId),
-    onSuccess: () => {
+    onMutate: async (campaignId) => {
+      await queryClient.cancelQueries({ queryKey: ['campaigns'] });
+      const queryKey = ['campaigns', debouncedFilters, limit, page] as const;
+      const previous = queryClient.getQueryData<CampaignsListResponse>(queryKey);
+      queryClient.setQueryData<CampaignsListResponse>(queryKey, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          campaigns: old.campaigns.map((c) =>
+            c.id === campaignId ? { ...c, status: 'paused' as const } : c
+          ),
+        };
+      });
+      return { previous, queryKey };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.queryKey as readonly unknown[], context.previous);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'], exact: false });
     },
   });
 
-  // Resume mutation
+  // Resume mutation with optimistic update
   const resumeMutation = useMutation({
     mutationFn: (campaignId: number) => campaignService.resumeCampaign(campaignId),
-    onSuccess: () => {
+    onMutate: async (campaignId) => {
+      await queryClient.cancelQueries({ queryKey: ['campaigns'] });
+      const queryKey = ['campaigns', debouncedFilters, limit, page] as const;
+      const previous = queryClient.getQueryData<CampaignsListResponse>(queryKey);
+      queryClient.setQueryData<CampaignsListResponse>(queryKey, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          campaigns: old.campaigns.map((c) =>
+            c.id === campaignId ? { ...c, status: 'executing' as const } : c
+          ),
+        };
+      });
+      return { previous, queryKey };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.queryKey as readonly unknown[], context.previous);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'], exact: false });
     },
   });
 
-  // Delete mutation
+  // Delete mutation with optimistic update
   const deleteMutation = useMutation({
     mutationFn: (campaignId: number) => campaignService.deleteCampaign(campaignId),
-    onSuccess: () => {
+    onMutate: async (campaignId) => {
+      await queryClient.cancelQueries({ queryKey: ['campaigns'] });
+      const queryKey = ['campaigns', debouncedFilters, limit, page] as const;
+      const previous = queryClient.getQueryData<CampaignsListResponse>(queryKey);
+      queryClient.setQueryData<CampaignsListResponse>(queryKey, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          campaigns: old.campaigns.filter((c) => c.id !== campaignId),
+          count: old.count - 1,
+        };
+      });
+      return { previous, queryKey };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(context.queryKey as readonly unknown[], context.previous);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'], exact: false });
     },
   });
@@ -242,9 +301,9 @@ const CampaignList: React.FC<CampaignListProps> = ({
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" onClick={(e) => e.stopPropagation()}>
                       <CampaignActions
                         campaign={campaign}
-                        onPause={async (id) => await pauseMutation.mutateAsync(id)}
-                        onResume={async (id) => await resumeMutation.mutateAsync(id)}
-                        onDelete={async (id) => await deleteMutation.mutateAsync(id)}
+                        onPause={(id) => { pauseMutation.mutate(id); return Promise.resolve(); }}
+                        onResume={(id) => { resumeMutation.mutate(id); return Promise.resolve(); }}
+                        onDelete={(id) => { deleteMutation.mutate(id); return Promise.resolve(); }}
                       />
                     </td>
                   </tr>
@@ -275,11 +334,12 @@ const CampaignList: React.FC<CampaignListProps> = ({
             </Button>
 
             <div className="flex gap-1">
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                const pageNum = page < 3 ? i : page - 2 + i;
-                if (pageNum >= totalPages) return null;
-
-                return (
+              {Array.from(
+                { length: Math.min(5, totalPages) },
+                (_, i) => (page < 3 ? i : page - 2 + i)
+              )
+                .filter((pageNum) => pageNum < totalPages)
+                .map((pageNum) => (
                   <Button
                     key={pageNum}
                     variant={page === pageNum ? 'primary' : 'ghost'}
@@ -288,8 +348,7 @@ const CampaignList: React.FC<CampaignListProps> = ({
                   >
                     {pageNum + 1}
                   </Button>
-                );
-              })}
+                ))}
             </div>
 
             <Button
