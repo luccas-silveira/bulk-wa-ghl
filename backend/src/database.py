@@ -1,12 +1,21 @@
 """
-Database configuration and session management
+Database configuration — AsyncSession + asyncpg
 """
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.orm import declarative_base
 from src.config import DATABASE_URL, DEBUG, DB_POOL_SIZE, DB_MAX_OVERFLOW
 
-engine = create_engine(
-    DATABASE_URL,
+
+def _async_url(url: str) -> str:
+    """Convert postgresql:// to postgresql+asyncpg:// for async driver."""
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+asyncpg://" + url[len(prefix):]
+    return url  # already has driver or is sqlite+aiosqlite (tests)
+
+
+engine = create_async_engine(
+    _async_url(DATABASE_URL),
     echo=DEBUG,
     pool_size=DB_POOL_SIZE,
     max_overflow=DB_MAX_OVERFLOW,
@@ -14,16 +23,20 @@ engine = create_engine(
     pool_recycle=3600,
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+async_session_factory = async_sessionmaker(
+    engine,
+    expire_on_commit=False,
+    class_=AsyncSession,
+)
 
 Base = declarative_base()
 
-def get_db():
-    """
-    Dependency for FastAPI to get database session
-    """
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# Backward-compatibility alias — services still importing SessionLocal will
+# receive the async factory. Full migration of those call-sites is in Task 2+.
+SessionLocal = async_session_factory
+
+
+async def get_db():
+    """FastAPI dependency — yields an AsyncSession, auto-closed on exit."""
+    async with async_session_factory() as session:
+        yield session
