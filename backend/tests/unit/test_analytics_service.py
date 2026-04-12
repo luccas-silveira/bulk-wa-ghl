@@ -984,3 +984,45 @@ class TestGetDeliveryTimeline:
 
         result = await get_delivery_timeline(db_session, days=30)
         assert result['labels'] == []
+
+
+@pytest.mark.asyncio
+class TestGetCampaignMetricsSingleQuery:
+    """ANA-07: get_campaign_metrics must use a single GROUP BY query."""
+
+    async def test_single_db_execute_call(self, db_session):
+        """Verify only one execute() call is made regardless of status count."""
+        from unittest.mock import patch, AsyncMock, MagicMock
+
+        # Build fake GROUP BY rows
+        rows = [
+            MagicMock(status="draft", cnt=2),
+            MagicMock(status="completed", cnt=5),
+        ]
+        fake_result = MagicMock()
+        fake_result.all.return_value = rows
+
+        with patch.object(db_session, "execute", new_callable=AsyncMock) as mock_exec:
+            mock_exec.return_value = fake_result
+            metrics = await get_campaign_metrics(db_session)
+
+        assert mock_exec.call_count == 1, (
+            f"Expected 1 execute call, got {mock_exec.call_count} — N+1 present"
+        )
+        assert metrics["total_campaigns"] == 7
+        assert metrics["draft_campaigns"] == 2
+        assert metrics["completed_campaigns"] == 5
+        # Statuses not in rows must default to 0
+        assert metrics["failed_campaigns"] == 0
+
+    async def test_empty_db_returns_all_zeros(self, db_session):
+        from unittest.mock import patch, AsyncMock, MagicMock
+        fake_result = MagicMock()
+        fake_result.all.return_value = []
+        with patch.object(db_session, "execute", new_callable=AsyncMock) as mock_exec:
+            mock_exec.return_value = fake_result
+            metrics = await get_campaign_metrics(db_session)
+        assert metrics["total_campaigns"] == 0
+        for key in ("draft_campaigns", "scheduled_campaigns", "active_campaigns",
+                    "completed_campaigns", "failed_campaigns", "cancelled_campaigns"):
+            assert metrics[key] == 0

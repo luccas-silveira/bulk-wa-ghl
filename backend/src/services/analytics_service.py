@@ -5,7 +5,7 @@ Provides dashboard analytics and metrics for campaigns and messages
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, func, desc
 
 from src.models.campaign import Campaign
 from src.models.message import Message
@@ -16,23 +16,28 @@ async def get_campaign_metrics(
     ghl_user_id: Optional[str] = None,
     days: int = 30
 ) -> Dict:
+    """Return campaign status counts via a single SQL GROUP BY (ANA-07)."""
     date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
 
-    stmt = select(Campaign).where(Campaign.created_at >= date_threshold)
+    stmt = (
+        select(Campaign.status, func.count(Campaign.id).label("cnt"))
+        .where(Campaign.created_at >= date_threshold)
+        .group_by(Campaign.status)
+    )
     if ghl_user_id:
         stmt = stmt.where(Campaign.ghl_user_id == ghl_user_id)
 
-    result = await db.execute(stmt)
-    campaigns = result.scalars().all()
+    rows = (await db.execute(stmt)).all()
+    counts = {row.status: row.cnt for row in rows}
 
     return {
-        'total_campaigns': len(campaigns),
-        'draft_campaigns': sum(1 for c in campaigns if c.status == 'draft'),
-        'scheduled_campaigns': sum(1 for c in campaigns if c.status == 'scheduled'),
-        'active_campaigns': sum(1 for c in campaigns if c.status == 'executing'),
-        'completed_campaigns': sum(1 for c in campaigns if c.status == 'completed'),
-        'failed_campaigns': sum(1 for c in campaigns if c.status == 'failed'),
-        'cancelled_campaigns': sum(1 for c in campaigns if c.status == 'cancelled'),
+        "total_campaigns": sum(counts.values()),
+        "draft_campaigns": counts.get("draft", 0),
+        "scheduled_campaigns": counts.get("scheduled", 0),
+        "active_campaigns": counts.get("executing", 0) + counts.get("paused", 0),
+        "completed_campaigns": counts.get("completed", 0),
+        "failed_campaigns": counts.get("failed", 0),
+        "cancelled_campaigns": counts.get("cancelled", 0),
     }
 
 
