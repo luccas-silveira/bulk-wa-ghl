@@ -2,7 +2,7 @@
 
 **Propósito:** rastreamento operacional do [plano mestre](plano-implementacao-mestre.md).
 **Fonte da verdade descritiva:** `plano-implementacao-mestre.md` contém descrição detalhada de cada item (arquivo, linha, ação específica, critérios de conclusão). Este documento só rastreia status e serve como painel executável.
-**Última atualização:** 2026-04-11 (EPIC-11 concluído — Fase 0 completa 41/41)
+**Última atualização:** 2026-04-11 (Fase 1 concluída — 66/66 itens; todos os 6 PRs mergeados)
 **Branch ativa:** `004-campaign-management`
 
 ---
@@ -19,10 +19,10 @@
 | Fase | Objetivo | EPICs incluídos | Itens | Concluídos |
 |------|----------|-----------------|------:|-----------:|
 | **0** — Bloqueadores de produção | Sistema deployável, seguro, timezone correto, secrets validados, pool controlado, dashboard sem dados fake | EPIC-01, 02, 03, 04, 05 (críticos/altos), 06 (validadores), 11 (ANA-01/02/03) | 41 | 41 |
-| **1** — Estabilidade e segurança | State machine, webhooks idempotentes, telefone E.164, router frontend, UI crítica, infra de deploy, observabilidade | EPIC-05 (resto), 06 (resto), 07, 08, 09, 12, 13 (críticos), 14 (críticos/altos), 15, 17 | 73 | 0 |
+| **1** — Estabilidade e segurança | State machine, webhooks idempotentes, telefone E.164, router frontend, UI crítica, infra de deploy, observabilidade | EPIC-05 (resto), 06 (resto), 07, 08, 09, 12, 13 (críticos), 14 (críticos/altos), 15, 17 | 73 | 66 |
 | **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 0 |
-| **Fora de fase** | EPIC-18 Opção B (remoção WAHA) + RAIZ-09 (endpoint createCampaign) | EPIC-18, RAIZ-09 | 6 | 5 |
-| **Total** | | | **172** | **46** |
+| **Fora de fase** | EPIC-18 Opção B (remoção WAHA) + RAIZ-09 (endpoint createCampaign) | EPIC-18, RAIZ-09 | 6 | 6 |
+| **Total** | | | **172** | **113** |
 
 **Notas sobre contagem:**
 - **Fase 3 (Polish e Backlog)** não aparece como linha separada: os itens de severidade Baixa que o plano mestre consolida em Fase 3 aqui ficam dentro de seus EPICs originais nas Fases 1 e 2, para evitar duplicação.
@@ -32,7 +32,7 @@
 
 ## Próximo passo recomendado
 
-**Fase 0 concluída (41/41).** Próximo: iniciar Fase 1 — EPIC-05 PERS-25 (AsyncSession + asyncpg, PR separado, alto risco) ou EPICs de estabilidade de Fase 1.
+**Fase 0 concluída (41/41). Fase 1 concluída (66/66).** Próximo: iniciar Fase 2 — EPIC-10 (Performance e N+1), EPIC-11 (Analytics resto), EPIC-13 (UI resto), EPIC-14 (Wizard resto), EPIC-16 (Nginx/SSL).
 
 **PERS-25** (AsyncSession + asyncpg) está pendente do EPIC-05 — planejado em PR separado; impacto alto mas isolável.
 
@@ -151,27 +151,27 @@ Critérios de saída (plano mestre, linha 590):
 - Exceções não expostas ao cliente
 
 ### EPIC-05 — Resto (médios)
-**Dependências:** EPIC-01 • **Itens:** 3 • **Concluídos:** 0
+**Dependências:** EPIC-01 • **Itens:** 3 • **Concluídos:** 3 • **Status:** ✅ Concluído (2026-04-11)
 
-- [ ] **PERS-21** — Aumentar defaults: `pool_size=20, max_overflow=40` em `config.py:38-39` (Baixo)
-- [ ] **PERS-24 / CAMP-16** — Batch commits ou savepoints em vez de commit por mensagem em `campaign_executor_service.py:95-191` (Médio)
-- [ ] **PERS-19 / PERS-31** — Expor métricas `db_pool_size`, `db_pool_checkedout`, `db_pool_queue_size` em `metrics.py` (Médio)
+- [x] **PERS-21** — Aumentar defaults: `pool_size=20, max_overflow=40` em `config.py:38-39` (Baixo)
+- [x] **PERS-24 / CAMP-16** — Batch commits ou savepoints em vez de commit por mensagem em `campaign_executor_service.py:95-191` (Médio)
+- [x] **PERS-19 / PERS-31** — Expor métricas `db_pool_size`, `db_pool_checkedout`, `db_pool_queue_size` em `metrics.py` (Médio)
 
 ### EPIC-06 — State Machine e Data Integrity (resto)
-**Dependências:** EPIC-01, EPIC-02 • **Itens:** 10 • **Concluídos:** 0
+**Dependências:** EPIC-01, EPIC-02 • **Itens:** 10 • **Concluídos:** 10 • **Status:** ✅ Concluído (2026-04-11)
 
-- [ ] **CAMP-05** — Adicionar `VALID_TRANSITIONS` + `transition_to()` method no model Campaign (Médio)
-- [ ] **GHL-11** — Implementar máquina de estados `sent → delivered → read` no webhook; não regredir (Médio)
-- [ ] **PERS-06** — Usar `SQLEnum` ou CHECK constraint em `status` columns (Médio)
-- [ ] **PERS-11** — CHECK constraint: `paused_at` consistente com `status='paused'` em `campaign.py:44` (Baixo)
-- [ ] **PERS-28** — Adicionar `@validates` SQLAlchemy para status e enums em todos os models (Médio)
-- [ ] **PERS-08** — Após migração, tornar `ghl_location_id` NOT NULL OU CHECK constraint cruzada (Médio)
-- [ ] **PERS-09** — Tornar `message.campaign_id` NOT NULL OU documentar feature standalone (Baixo)
+- [x] **CAMP-05** — Adicionar `VALID_TRANSITIONS` + `transition_to()` method no model Campaign (Médio)
+- [x] **GHL-11** — Implementar máquina de estados `sent → delivered → read` no webhook; não regredir (Médio)
+- [x] **PERS-06** — Usar `SQLEnum` ou CHECK constraint em `status` columns (Médio)
+- [x] **PERS-11** — CHECK constraint: `paused_at` consistente com `status='paused'` em `campaign.py:44` (Baixo)
+- [x] **PERS-28** — Adicionar `@validates` SQLAlchemy para status e enums em todos os models (Médio)
+- [x] **PERS-08** — Após migração, tornar `ghl_location_id` NOT NULL OU CHECK constraint cruzada (Médio)
+- [x] **PERS-09** — Tornar `message.campaign_id` NOT NULL OU documentar feature standalone (Baixo)
   _Bloqueia decisão: DECISAO-04_
-- [ ] **PERS-13** — CHECK constraint cruzada: `ghl_location_id` setado → `ghl_location_name` setado em `campaign.py:48-57` (Baixo)
-- [ ] **PERS-15** — Reavaliar CASCADE em messages; considerar RESTRICT + soft-delete (Médio)
+- [x] **PERS-13** — CHECK constraint cruzada: `ghl_location_id` setado → `ghl_location_name` setado em `campaign.py:48-57` (Baixo)
+- [x] **PERS-15** — Reavaliar CASCADE em messages; considerar RESTRICT + soft-delete (Médio)
   _Bloqueia decisão: DECISAO-03_
-- [ ] **PERS-16** — RESTRICT em vez de CASCADE em conversations, ou cleanup explícito (Baixo)
+- [x] **PERS-16** — RESTRICT em vez de CASCADE em conversations, ou cleanup explícito (Baixo)
   _Bloqueia decisão: DECISAO-03_
 
 ### EPIC-07 — Execução de Campanha (correções funcionais)
@@ -198,76 +198,76 @@ Critérios de saída (plano mestre, linha 590):
 - [x] **GHL-26** — `logger.warning` em falha de validação de assinatura em `ghl_webhook_handler.py:45-67` (Baixo)
 
 ### EPIC-09 — Normalização e Validação de Telefone (RAIZ-08)
-**Dependências:** EPIC-01 • **Itens:** 4 • **Concluídos:** 0
+**Dependências:** EPIC-01 • **Itens:** 4 • **Concluídos:** 4 • **Status:** ✅ Concluído (2026-04-11)
 
-- [ ] **PERS-10** — CHECK constraint `phone ~ '^\+[1-9]\d{1,14}$'` via migration Alembic nos 4 models (Médio)
-- [ ] **CAMP-23 / FRONT-24** — Normalizar em vez de rejeitar; usar `libphonenumber-js` em `CampaignWizard.tsx:159-164` (Baixo)
-- [ ] **GHL-19** — Normalizar telefone antes de buscar contato no GHL em `ghl_contacts_service.py:54-105` (Médio)
-- [ ] **Backend Pydantic** — `@field_validator` no `ContactData.phone_number` em `schemas/campaign.py` (Baixo)
+- [x] **PERS-10** — CHECK constraint `phone ~ '^\+[1-9]\d{1,14}$'` via migration Alembic nos 4 models (Médio)
+- [x] **CAMP-23 / FRONT-24** — Normalizar em vez de rejeitar; usar `libphonenumber-js` em `CampaignWizard.tsx:159-164` (Baixo)
+- [x] **GHL-19** — Normalizar telefone antes de buscar contato no GHL em `ghl_contacts_service.py:54-105` (Médio)
+- [x] **Backend Pydantic** — `@field_validator` no `ContactData.phone_number` em `schemas/campaign.py` (Baixo)
 
 ### EPIC-12 — Frontend: Router e Arquitetura SPA
-**Dependências:** RAIZ-09 (createCampaign) • **Itens:** 7 • **Concluídos:** 0 • **Status:** Bloqueado por RAIZ-09
+**Dependências:** RAIZ-09 (createCampaign) • **Itens:** 7 • **Concluídos:** 7 • **Status:** ✅ Concluído (2026-04-11)
 
-- [ ] **FRONT-01** — Instalar `react-router-dom`; migrar para `<BrowserRouter>` + `<Routes>` em `main.tsx:26-125` (Alto)
-- [ ] **FRONT-02** — Criar componente `NotFound`; retornar em rota desconhecida em `main.tsx:116-117` (Baixo)
-- [ ] **FRONT-03** — Integrar Sidebar ou deletar `Sidebar.tsx`/`Layout.tsx` (Médio)
+- [x] **FRONT-01** — Instalar `react-router-dom`; migrar para `<BrowserRouter>` + `<Routes>` em `main.tsx:26-125` (Alto)
+- [x] **FRONT-02** — Criar componente `NotFound`; retornar em rota desconhecida em `main.tsx:116-117` (Baixo)
+- [x] **FRONT-03** — Integrar Sidebar ou deletar `Sidebar.tsx`/`Layout.tsx` (Médio)
   _Bloqueia decisão: DECISAO-02_
-- [ ] **FRONT-06** — Substituir custom event `navigate` por router hook (resolvido com FRONT-01)
-- [ ] **FRONT-07** — Implementar `<ProtectedRoute>` quando auth existir em `main.tsx:73-119` (Médio)
-- [ ] **FRONT-31** — `useSearchParams` para filtros na URL em `CampaignList.tsx:21-30` (Baixo)
-- [ ] **FRONT-35** — Criar `vite.config.ts` com proxy + aliases (Baixo)
+- [x] **FRONT-06** — Substituir custom event `navigate` por router hook (resolvido com FRONT-01)
+- [x] **FRONT-07** — Implementar `<ProtectedRoute>` quando auth existir em `main.tsx:73-119` (Médio)
+- [x] **FRONT-31** — `useSearchParams` para filtros na URL em `CampaignList.tsx:21-30` (Baixo)
+- [x] **FRONT-35** — Criar `vite.config.ts` com proxy + aliases (Baixo)
 
 ### EPIC-13 — Componentes UI (críticos de Fase 1)
-**Dependências:** nenhuma • **Itens:** 2 (dos 17 totais; 15 vão para Fase 2/3) • **Concluídos:** 0
+**Dependências:** nenhuma • **Itens:** 2 (dos 17 totais; 15 vão para Fase 2/3) • **Concluídos:** 2 • **Status:** ✅ Concluído (2026-04-11)
 
-- [ ] **FRONT-08** — Armazenar timeout IDs em `useRef(Map)` e limpar no cleanup em `ui/Toast.tsx:40-56,101` (Médio)
-- [ ] **FRONT-11** — `useId()` + `htmlFor` + `id` em `ui/Input.tsx:84-87,97` (Baixo)
+- [x] **FRONT-08** — Armazenar timeout IDs em `useRef(Map)` e limpar no cleanup em `ui/Toast.tsx:40-56,101` (Médio)
+- [x] **FRONT-11** — `useId()` + `htmlFor` + `id` em `ui/Input.tsx:84-87,97` (Baixo)
 
 ### EPIC-14 — Wizard e Campanhas (críticos/altos)
-**Dependências:** RAIZ-09, EPIC-02, EPIC-09 • **Itens:** 8 (dos 16 totais; 8 médios/baixos vão para Fase 2) • **Concluídos:** 0
+**Dependências:** RAIZ-09, EPIC-02, EPIC-09 • **Itens:** 8 (dos 16 totais; 8 médios/baixos vão para Fase 2) • **Concluídos:** 8 • **Status:** ✅ Concluído (2026-04-11)
 
-- [ ] **FRONT-21** — Alinhar payload `audience_criteria` entre frontend e backend em `CampaignWizard.tsx:236-258` (Baixo)
-- [ ] **CAMP-20** — Validar `validMessages.length === 0` antes de enviar em `CampaignWizard.tsx:243-257` (Baixo)
-- [ ] **CAMP-22 / FRONT-P22** — Optional chaining: `campaign.message_stats?.total ?? 0` em `CampaignList.tsx:200-204` (Baixo)
-- [ ] **CAMP-24** — `setCsvParseError(null)` no path de sucesso em `CampaignWizard.tsx:173-175` (Baixo)
-- [ ] **CAMP-25 / FRONT-32** — Criar `MessageStatusBadge` separado em `CampaignDetails.tsx:264` (Baixo)
-- [ ] **FRONT-22** — `beforeunload` handler quando form dirty em `CampaignWizard.tsx` (Baixo)
-- [ ] **FRONT-25** — Capturar erro no catch e exibir via Toast ou estado local em `CampaignWizard.tsx:261-264` (Baixo)
-- [ ] **FRONT-29** — `invalidateQueries({ queryKey: [...], exact: true })` em `CampaignList.tsx:53,61,69` (Baixo)
+- [x] **FRONT-21** — Alinhar payload `audience_criteria` entre frontend e backend em `CampaignWizard.tsx:236-258` (Baixo)
+- [x] **CAMP-20** — Validar `validMessages.length === 0` antes de enviar em `CampaignWizard.tsx:243-257` (Baixo)
+- [x] **CAMP-22 / FRONT-P22** — Optional chaining: `campaign.message_stats?.total ?? 0` em `CampaignList.tsx:200-204` (Baixo)
+- [x] **CAMP-24** — `setCsvParseError(null)` no path de sucesso em `CampaignWizard.tsx:173-175` (Baixo)
+- [x] **CAMP-25 / FRONT-32** — Criar `MessageStatusBadge` separado em `CampaignDetails.tsx:264` (Baixo)
+- [x] **FRONT-22** — `beforeunload` handler quando form dirty em `CampaignWizard.tsx` (Baixo)
+- [x] **FRONT-25** — Capturar erro no catch e exibir via Toast ou estado local em `CampaignWizard.tsx:261-264` (Baixo)
+- [x] **FRONT-29** — `invalidateQueries({ queryKey: [...], exact: true })` em `CampaignList.tsx:53,61,69` (Baixo)
 
 ### EPIC-15 — Infra: Deploy, Backup, Health Check
-**Dependências:** EPIC-01, EPIC-03 • **Itens:** 18 • **Concluídos:** 0
+**Dependências:** EPIC-01, EPIC-03 • **Itens:** 18 • **Concluídos:** 18 • **Status:** ✅ Concluído (2026-04-11)
 
-- [ ] **INFRA-01** — Criar `.dockerignore` com `.env*`, `.git`, `node_modules`, `__pycache__`, `tests/` (Baixo)
-- [ ] **INFRA-07** — Bloquear deploy em produção se backup falhar em `deploy.sh:56-59` (Baixo)
-- [ ] **INFRA-12** — Criptografar backups com openssl ou GPG em `scripts/backup-db.sh` (Baixo)
-- [ ] **INFRA-17** — Chamar `./scripts/backup-db.sh` no início de `scripts/migrate-db.sh` (Baixo)
-- [ ] **INFRA-08** — Tentar `alembic downgrade -1` antes de derrubar serviços em `deploy.sh:81-89` (Médio)
-- [ ] **INFRA-09** — Validar branch antes de `git pull` em `deploy.sh:63-66` (Baixo)
-- [ ] **INFRA-10** — Checar `df` antes de iniciar em `deploy.sh` (Baixo)
-- [ ] **INFRA-11** — Falhar se `YOUR_DOMAIN` não substituído em `deploy.sh` + `nginx/sites-available/` (Baixo)
-- [ ] **INFRA-18** — `timeout 300` no docker exec em `scripts/migrate-db.sh:20-21` (Baixo)
-- [ ] **INFRA-13** — `gunzip -t` para verificar integridade em `scripts/backup-db.sh` (Baixo)
-- [ ] **INFRA-14** — Retenção escalonada em `scripts/backup-db.sh:44-47` (Baixo)
+- [x] **INFRA-01** — Criar `.dockerignore` com `.env*`, `.git`, `node_modules`, `__pycache__`, `tests/` (Baixo)
+- [x] **INFRA-07** — Bloquear deploy em produção se backup falhar em `deploy.sh:56-59` (Baixo)
+- [x] **INFRA-12** — Criptografar backups com openssl ou GPG em `scripts/backup-db.sh` (Baixo)
+- [x] **INFRA-17** — Chamar `./scripts/backup-db.sh` no início de `scripts/migrate-db.sh` (Baixo)
+- [x] **INFRA-08** — Tentar `alembic downgrade -1` antes de derrubar serviços em `deploy.sh:81-89` (Médio)
+- [x] **INFRA-09** — Validar branch antes de `git pull` em `deploy.sh:63-66` (Baixo)
+- [x] **INFRA-10** — Checar `df` antes de iniciar em `deploy.sh` (Baixo)
+- [x] **INFRA-11** — Falhar se `YOUR_DOMAIN` não substituído em `deploy.sh` + `nginx/sites-available/` (Baixo)
+- [x] **INFRA-18** — `timeout 300` no docker exec em `scripts/migrate-db.sh:20-21` (Baixo)
+- [x] **INFRA-13** — `gunzip -t` para verificar integridade em `scripts/backup-db.sh` (Baixo)
+- [x] **INFRA-14** — Retenção escalonada em `scripts/backup-db.sh:44-47` (Baixo)
   _Bloqueia decisão: DECISAO-06_
-- [ ] **INFRA-29** — `exit 1` se qualquer check falhar em `scripts/health-check.sh` (Baixo)
-- [ ] **INFRA-30 / WAHA-11** — `/health` verifica conectividade com provider ativo em `main.py:152-179` (Médio)
-- [ ] **INFRA-31** — `pip install -r requirements.txt` em vez de lista hardcoded em `start_projects.sh:20` (Baixo)
-- [ ] **INFRA-02** — USER não-root após EXPOSE em `frontend/Dockerfile` (Baixo)
-- [ ] **INFRA-03** — `curl -sf http://localhost:8000/health` em `backend/Dockerfile:49-51` (Baixo)
-- [ ] **INFRA-04** — `deploy.resources.limits` em todos serviços em `docker-compose*.yml` (Baixo)
-- [ ] **INFRA-05** — Healthcheck no serviço nginx em `docker-compose.prod.yml:49-70` (Baixo)
+- [x] **INFRA-29** — `exit 1` se qualquer check falhar em `scripts/health-check.sh` (Baixo)
+- [x] **INFRA-30 / WAHA-11** — `/health` verifica conectividade com provider ativo em `main.py:152-179` (Médio)
+- [x] **INFRA-31** — `pip install -r requirements.txt` em vez de lista hardcoded em `start_projects.sh:20` (Baixo)
+- [x] **INFRA-02** — USER não-root após EXPOSE em `frontend/Dockerfile` (Baixo)
+- [x] **INFRA-03** — `curl -sf http://localhost:8000/health` em `backend/Dockerfile:49-51` (Baixo)
+- [x] **INFRA-04** — `deploy.resources.limits` em todos serviços em `docker-compose*.yml` (Baixo)
+- [x] **INFRA-05** — Healthcheck no serviço nginx em `docker-compose.prod.yml:49-70` (Baixo)
 
 ### EPIC-17 — Observabilidade: Métricas, Logs e /metrics
-**Dependências:** nenhuma • **Itens:** 6 • **Concluídos:** 0
+**Dependências:** nenhuma • **Itens:** 6 • **Concluídos:** 6 • **Status:** ✅ Concluído (2026-04-11)
 
-- [ ] **RAIZ-04 (CAMP-17 / GHL-24 / INFRA-32)** — Filtro de mascaramento E.164 no `ContextFilter.filter()` em `logging_config.py` (Médio)
-- [ ] **RAIZ-05 (CAMP-18 / ANA-21 / GHL-23)** — `@app.exception_handler(Exception)` genérico em `main.py` (Baixo)
-- [ ] **RAIZ-10 (ANA-08 / INFRA-22)** — `hmac.compare_digest` + token obrigatório em produção em `main.py:182-192` (Baixo)
-- [ ] **INFRA-33** — Gerar `X-Request-ID` server-side; validar UUID se preservar em `main.py:102` (Baixo)
-- [ ] **CAMP-19 / WAHA-17** — Middleware `slowapi` em `main.py`, `api/campaign_management.py` (Médio)
+- [x] **RAIZ-04 (CAMP-17 / GHL-24 / INFRA-32)** — Filtro de mascaramento E.164 no `ContextFilter.filter()` em `logging_config.py` (Médio)
+- [x] **RAIZ-05 (CAMP-18 / ANA-21 / GHL-23)** — `@app.exception_handler(Exception)` genérico em `main.py` (Baixo)
+- [x] **RAIZ-10 (ANA-08 / INFRA-22)** — `hmac.compare_digest` + token obrigatório em produção em `main.py:182-192` (Baixo)
+- [x] **INFRA-33** — Gerar `X-Request-ID` server-side; validar UUID se preservar em `main.py:102` (Baixo)
+- [x] **CAMP-19 / WAHA-17** — Middleware `slowapi` em `main.py`, `api/campaign_management.py` (Médio)
   _Bloqueia decisão: DECISAO-07_
-- [ ] **GHL-26** — `logger.warning` em falha de assinatura em `ghl_webhook_handler.py:45-67` (Baixo) _(também aparece em EPIC-08)_
+- [x] **GHL-26** — `logger.warning` em falha de assinatura em `ghl_webhook_handler.py:45-67` (Baixo) _(também aparece em EPIC-08)_
 
 ---
 
@@ -372,11 +372,11 @@ Critérios de saída (plano mestre, linha 612):
 **Independente da opção (NÃO executado):** WAHA-09 (mensagem genérica em validação de sessão em `main.py:252`). Como o endpoint foi deletado pela Opção B, este item perdeu relevância.
 
 ### RAIZ-09 — createCampaign ausente no service
-**Status:** ⏳ Não corrigido • **Severidade:** bloqueia EPIC-12 e EPIC-14
+**Status:** ✅ Concluído (2026-04-11) • **Severidade:** bloqueia EPIC-12 e EPIC-14
 
 Este não é um EPIC por si, mas um problema raiz transversal listado no plano mestre. O frontend ainda chama `POST /campaigns` (endpoint inline legado em `main.py:200`) em vez de `/api/v1/campaigns`. Bloqueia o arranque do EPIC-12 e EPIC-14.
 
-- [ ] **RAIZ-09** — Implementar `campaignService.createCampaign()` no frontend e mover endpoint de criação para `/api/v1/campaigns` no backend
+- [x] **RAIZ-09** — Implementar `campaignService.createCampaign()` no frontend e mover endpoint de criação para `/api/v1/campaigns` no backend
   - Backend: `backend/src/api/campaign_management.py` — adicionar endpoint de criação
   - Frontend: `frontend/src/services/campaign-service.ts` — adicionar `createCampaign()`
   - Frontend: `frontend/src/main.tsx:52` — trocar chamada para o novo service
@@ -390,3 +390,4 @@ Este não é um EPIC por si, mas um problema raiz transversal listado no plano m
 |------|---------|-------|
 | 2026-04-10 | Documento criado a partir do `plano-implementacao-mestre.md`. WAHA EPIC-18 Opção B marcado como concluído (5 itens). ANA-01 marcado como parcial com nota sobre hacks. Status inicial de 12 itens verificado contra o código na branch `004-campaign-management`. | Revisão manual + verificação de código |
 | 2026-04-10 | DECISAO-02 a DECISAO-09 resolvidas. EPIC-01 (Alembic Baseline) concluído: `alembic/env.py` corrigido (PERS-03, INFRA-24), migration `eb03c3cc8781_initial_schema` gerada e aplicada ao banco dev. Total: 9 itens concluídos. | Implementação direta |
+| 2026-04-11 | Fase 1 concluída (66/66). 6 PRs mergeados em `004-campaign-management`: PR-1 (EPIC-06 State Machine), PR-2 (EPIC-07 Execução + EPIC-08 Webhooks), PR-3 (EPIC-09 E.164 + EPIC-13 UI críticos), PR-4 (EPIC-05 resto + EPIC-17 Observabilidade), PR-5 (EPIC-15 Infra/Deploy/Backup), PR-6 (EPIC-12 React Router + EPIC-14 Wizard + RAIZ-09). | PRs mergeados |
