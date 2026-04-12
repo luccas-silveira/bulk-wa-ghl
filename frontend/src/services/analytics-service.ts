@@ -20,8 +20,14 @@ const fetchKpis = async (params?: MessagingKpiParams): Promise<MessagingKpiRespo
   const response = await fetch(`${API_BASE_URL}/api/v1/analytics/messaging-kpis${buildQueryString(params)}`);
 
   if (!response.ok) {
-    const message = `Falha ao buscar KPIs: ${response.status} ${response.statusText}`;
-    throw new Error(message);
+    let errorDetail = `${response.status} ${response.statusText}`;
+    try {
+      const body = await response.json();
+      if (body?.detail) errorDetail = String(body.detail);
+    } catch {
+      // JSON parse failed — keep the default errorDetail
+    }
+    throw new Error(`Falha ao buscar KPIs: ${errorDetail}`);
   }
 
   return response.json();

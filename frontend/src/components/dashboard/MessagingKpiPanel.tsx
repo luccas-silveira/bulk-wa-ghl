@@ -16,6 +16,7 @@ import { CheckCircle2, RefreshCcw, Reply, Send, TrendingUp } from 'lucide-react'
 import Card, { CardBody, CardHeader } from '../ui/Card';
 import Button from '../ui/Button';
 import { analyticsService } from '../../services/analytics-service';
+import { formatNumber, formatPercentage } from '../../utils/format';
 import type { MessagingKpiResponse } from '../../types/analytics';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Tooltip, Legend, Filler);
@@ -25,10 +26,6 @@ const chartColors = {
   delivered: '#10b981',
   responses: '#8b5cf6',
 };
-
-const formatNumber = (value: number) => new Intl.NumberFormat('pt-BR').format(value);
-
-const formatPercentage = (value: number) => `${value.toFixed(1)}%`;
 
 const skeletonBlock = 'bg-gray-200 rounded animate-pulse';
 
@@ -55,7 +52,7 @@ const MessagingKpiPanel: React.FC = () => {
   const { data, isLoading, isError, error, isFetching, refetch } = useQuery({
     queryKey: ['messaging-kpis', range],
     queryFn: () => analyticsService.fetchKpis({ days: range }),
-    staleTime: 60_000,
+    staleTime: 10_000,
   });
 
   const payload = data ?? buildFallbackData();
