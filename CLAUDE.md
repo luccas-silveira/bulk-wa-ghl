@@ -18,11 +18,12 @@ Bulk WhatsApp messaging platform integrated with GoHighLevel (GHL). Manages camp
 **Messaging provider:** GoHighLevel (GHL) only. WAHA (WhatsApp HTTP API) is not supported — endpoints, types, and references have been removed. If WAHA support is ever needed again, it will require introducing a provider abstraction layer (`MessageProvider` interface) and refactoring `CampaignExecutorService` to consume it.
 
 **Frontend** (React 18.2 / TypeScript 5.2 / Vite 5.0) — `frontend/src/`
+- Routing: `react-router-dom v6` — `BrowserRouter + Routes + Route` in `main.tsx`; all navigation via `useNavigate()`
 - State: TanStack Query 5.90 for server state
 - Styling: Tailwind CSS 3.4
 - Charts: Chart.js 4.5 + react-chartjs-2
 - Key areas: `components/dashboard/`, `components/campaign/`, `components/ui/`, `pages/`, `hooks/`, `services/`
-- API client: `services/api-client.ts` uses `VITE_API_URL` env var
+- API client: `services/api-client.ts` uses `VITE_API_URL` env var; `vite.config.ts` proxies `/api → localhost:8000` in dev
 
 **Infrastructure**: Docker Compose (dev + prod), Nginx reverse proxy (prod), deployment via `deploy.sh`
 
@@ -32,6 +33,7 @@ Bulk WhatsApp messaging platform integrated with GoHighLevel (GHL). Manages camp
 ```bash
 npm run dev              # Vite dev server (port 3001)
 npm run build            # Production build
+npx tsc --noEmit         # TypeScript check without build
 npm test                 # Jest tests
 npm test -- --testPathPattern=<pattern>  # Single test file
 npm run test:coverage    # Coverage report
@@ -68,12 +70,50 @@ docker-compose logs -f backend  # Follow backend logs
 
 ## Key patterns
 
-- **Campaign execution**: Background tasks via `asyncio.create_task()`. Campaigns can be immediate or scheduled (APScheduler). Multi-user campaigns distribute contacts round-robin. `CampaignExecutorService.SPEED_DELAYS` uses `slow=420s`, `medium=240s`, `fast=60s` between contacts — when testing real execution, use a small contact list or the run will take hours.
-- **Campaign status lifecycle**: `Campaign.status` is a plain `String(50)` (declared in `backend/src/models/campaign.py:37`, not an enum), default `draft`. Valid values: `draft`, `scheduled`, `executing`, `paused`, `completed`, `failed`, `cancelled`. Transitions observed in code: `draft → scheduled|executing|failed`; `executing → paused|completed|failed`; `paused → executing`; `scheduled → cancelled|failed`. Terminal states: `completed`, `failed`, `cancelled`.
-- **All campaign endpoints live under `/api/v1/campaigns`**: `backend/src/api/campaign_management.py` handles all operations — `POST /api/v1/campaigns` (create, RAIZ-09), list, details, logs, stats, pause/resume, and delete. `main.py` no longer contains any inline campaign handlers. The frontend (`frontend/src/main.tsx`) POSTs to `/api/v1/campaigns`.
-- **GHL OAuth**: Tokens encrypted with Fernet (`GHL_TOKEN_ENCRYPTION_KEY`) and stored in `ghl_oauth_tokens` table. `GHL_WEBHOOK_SECRET` is validated at startup (not on-demand) — `ghl_webhook_handler.py` reads it from `src.config`, not from `os.getenv`.
-- **Observability**: Structured JSON logging with `X-Request-ID` propagation. Prometheus metrics at `/metrics` (toggle `ENABLE_METRICS`).
-- **API docs**: FastAPI auto-generates Swagger at `http://localhost:8000/docs`.
+### Campaign state machine
+
+**Never assign `campaign.status` directly.** Use `campaign.transition_to(new_status)` — it enforces the state machine and raises `InvalidTransitionError` (defined in `backend/src/exceptions.py`) for illegal transitions.
+
+Valid values: `draft`, `scheduled`, `executing`, `paused`, `completed`, `failed`, `cancelled`.  
+Valid transitions: `draft → scheduled|executing|failed`; `executing → paused|completed|failed`; `paused → executing`; `scheduled → cancelled|failed|executing`. Terminal states (`completed`, `failed`, `cancelled`) have no outgoing transitions.
+
+A SQLAlchemy `@validates('status')` guard in the model also rejects unknown values before they reach the DB.
+
+### Campaign execution
+
+Background tasks via `asyncio.create_task()`. Campaigns can be immediate or scheduled (APScheduler). Multi-user campaigns distribute contacts round-robin. `CampaignExecutorService.SPEED_DELAYS` uses `slow=420s`, `medium=240s`, `fast=60s` between contacts — when testing real execution, use a small contact list or the run will take hours.
+
+### Campaign endpoints
+
+All campaign operations live under `/api/v1/campaigns` in `backend/src/api/campaign_management.py`: `POST` (create), list, details, logs, stats, pause/resume, and delete. `main.py` contains no inline campaign handlers.
+
+### Rate limiting
+
+`backend/src/limiter.py` holds the `slowapi.Limiter` singleton (imported as `from src.limiter import limiter`). Decorate new endpoints with `@limiter.limit("60/minute")` and add `request: Request` as the first parameter. The singleton lives in its own module to avoid circular imports with `main.py`.
+
+### Phone normalization (E.164)
+
+`normalize_phone()` in `backend/src/schemas/campaign.py` normalizes phone numbers to E.164 format using the `phonenumbers` library. It normalizes (does not reject) unparseable numbers — the raw value is returned unchanged if parsing fails. Applied automatically via `@field_validator` on `ContactData.phone_number` and in `ghl_contacts_service.py` before GHL lookups.
+
+### PII masking in logs
+
+`ContextFilter` in `backend/src/logging_config.py` masks E.164 phone numbers (`+\d{7,15}` → `+***`) before log records are emitted. Do not log raw phone numbers anywhere — the filter is a second line of defense, not an invitation.
+
+### X-Request-ID and middleware
+
+`main.py` auto-generates a UUID `X-Request-ID` if the client does not send one, and validates UUID format if it does. The ID is propagated via `contextvars` so it appears in structured JSON logs. A global `@app.exception_handler(Exception)` returns `{"detail": "Internal server error"}` with status 500 for unhandled exceptions — internal details are only in logs.
+
+### Frontend routing
+
+`main.tsx` uses `BrowserRouter + Routes + Route`. All navigation is via `useNavigate()` — no `window.dispatchEvent` / custom events. Routes: `/` (Dashboard), `/campaigns` (list), `/campaigns/new` (Wizard), `/analytics`, `/settings`, `*` (NotFound). Each route wraps its element in `<ProtectedRoute>` (transparent stub, ready for future auth). `CampaignsPage` reads `?status=` via `useSearchParams` to pre-filter the campaign list.
+
+### GHL OAuth
+
+Tokens encrypted with Fernet (`GHL_TOKEN_ENCRYPTION_KEY`) and stored in `ghl_oauth_tokens` table. `GHL_WEBHOOK_SECRET` is validated at startup (not on-demand) — `ghl_webhook_handler.py` reads it from `src.config`, not from `os.getenv`.
+
+### Observability
+
+Structured JSON logging with `X-Request-ID` propagation. Prometheus metrics at `/metrics` (toggle `ENABLE_METRICS`, protected by `METRICS_TOKEN` when `DEBUG=False`). APScheduler job `_cleanup_old_webhooks` runs daily to purge `processed_webhooks` older than 30 days (registered in the `lifespan` in `main.py`). API docs at `http://localhost:8000/docs`.
 
 ## Supporting docs
 
@@ -84,5 +124,5 @@ The `docs/` folder contains domain context and historical decisions: `plano-impl
 - **Required at boot** (startup fails without it): `DATABASE_URL`
 - **GHL integration** — controlled by `GHL_ENABLED = bool(GHL_CLIENT_ID)` (computed in `config.py`). Set `GHL_CLIENT_ID` to enable GHL; when set, these also become required at startup (via `_require_env()`): `GHL_CLIENT_SECRET`, `GHL_REDIRECT_URI`, `GHL_TOKEN_ENCRYPTION_KEY`, `GHL_WEBHOOK_SECRET`. When `GHL_ENABLED=False`, all GHL API routers are not registered (`main.py`).
 - **Required in production** (`DEBUG=False`): `CORS_ORIGINS` — startup raises `RuntimeError` if not set. Defaults to `http://localhost:3001,http://localhost:3000` only when `DEBUG=True`.
-- **Optional**: `GHL_PRIVATE_TOKEN`, `GHL_API_VERSION` (defaults to `2021-07-28`), `ENABLE_METRICS`, `METRICS_TOKEN`, `DB_POOL_SIZE`, `DB_MAX_OVERFLOW`, `LOG_LEVEL`, `DEBUG`
+- **Optional**: `GHL_PRIVATE_TOKEN`, `GHL_API_VERSION` (defaults to `2021-07-28`), `ENABLE_METRICS`, `METRICS_TOKEN`, `DB_POOL_SIZE` (default 20), `DB_MAX_OVERFLOW` (default 40), `LOG_LEVEL`, `DEBUG`
 - **Frontend**: `VITE_API_URL` (defaults to `http://localhost:8000`)
