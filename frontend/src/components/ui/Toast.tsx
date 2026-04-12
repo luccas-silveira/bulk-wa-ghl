@@ -37,6 +37,9 @@ export const useToast = () => {
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastData[]>([]);
   const timersRef = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Mirrors toasts state so event handlers can read the current list synchronously
+  const toastsRef = React.useRef<ToastData[]>([]);
+  toastsRef.current = toasts;
 
   const removeToast = useCallback((id: string) => {
     // Cancelar timer pendente se ainda não disparou
@@ -52,24 +55,33 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const id = Math.random().toString(36).substr(2, 9);
     const toast: ToastData = {
       id,
-      duration: 5000, // Default 5 seconds
+      duration: 5000,
       ...toastData,
     };
 
+    // Read current list synchronously to determine eviction before calling setToasts
+    const current = toastsRef.current;
+    let evictedId: string | undefined;
+    if (current.length >= 5) {
+      evictedId = current[0].id;
+    }
+
+    // Ref mutations must happen outside the updater (updaters must be pure)
+    if (evictedId !== undefined) {
+      const t = timersRef.current.get(evictedId);
+      if (t !== undefined) {
+        clearTimeout(t);
+        timersRef.current.delete(evictedId);
+      }
+    }
+
     setToasts(prev => {
       if (prev.length >= 5) {
-        const [oldest, ...rest] = prev;
-        const existingTimer = timersRef.current.get(oldest.id);
-        if (existingTimer !== undefined) {
-          clearTimeout(existingTimer);
-          timersRef.current.delete(oldest.id);
-        }
-        return [...rest, toast];
+        return [...prev.slice(1), toast];
       }
       return [...prev, toast];
     });
 
-    // Registrar timer no Map para poder cancelar no cleanup ou no removeToast
     if (toast.duration && toast.duration > 0) {
       const timerId = setTimeout(() => {
         timersRef.current.delete(id);
@@ -109,7 +121,6 @@ const ToastContainer: React.FC = () => {
   return (
     <div
       role="region"
-      aria-live="polite"
       aria-label="Notificações"
       className="fixed bottom-4 right-4 z-50 space-y-3 max-w-md w-full"
     >

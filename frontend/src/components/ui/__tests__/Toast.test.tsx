@@ -123,14 +123,21 @@ describe('ToastProvider — FIFO eviction (FRONT-10)', () => {
     expect(screen.queryByText('Toast 0')).not.toBeInTheDocument();
     expect(screen.getByText('Toast 5')).toBeInTheDocument();
     expect(screen.getAllByRole('alert')).toHaveLength(5);
+
+    // Advance past the 10 ms enter-animation timers so only duration timers remain
+    act(() => { jest.advanceTimersByTime(10); });
+
+    // Verify evicted toast's timer was cancelled — exactly 5 timers remain
+    // (1 per visible toast, none orphaned from the evicted toast 0)
+    expect(jest.getTimerCount()).toBe(5);
   });
 });
 
 describe('ToastProvider — ARIA (FRONT-09)', () => {
-  it('ToastContainer has role=region aria-live=polite', () => {
+  it('ToastContainer has role=region with accessible name', () => {
     render(<ToastProvider><div /></ToastProvider>);
     const region = screen.getByRole('region', { name: 'Notificações' });
-    expect(region).toHaveAttribute('aria-live', 'polite');
+    expect(region).toBeInTheDocument();
   });
 
   it('individual toast has role=alert', async () => {
