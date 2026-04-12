@@ -4,8 +4,7 @@ Handles campaign listing, details, logs, statistics, and deletion operations
 """
 from typing import List, Dict, Optional, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, case, desc
-from datetime import datetime, timedelta
+from sqlalchemy import select, func, case
 from src.models.campaign import Campaign
 from src.models.message import Message
 

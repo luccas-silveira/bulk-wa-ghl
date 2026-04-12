@@ -4,7 +4,7 @@ Provides campaign listing, details, logs, statistics, pause/resume, deletion,
 and campaign creation (moved from main.py as part of RAIZ-09).
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, Request, Response, status as http_status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 import asyncio
@@ -33,7 +33,7 @@ async def list_campaigns(
     to_date: Optional[datetime] = Query(None, description="Filter campaigns created before this date"),
     limit: int = Query(20, ge=1, le=100, description="Number of campaigns to return"),
     offset: int = Query(0, ge=0, description="Number of campaigns to skip"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     List campaigns with filtering and pagination
@@ -65,7 +65,7 @@ async def list_campaigns(
         if to_date:
             filters['to_date'] = to_date
 
-        campaigns = service.list_campaigns(filters=filters, limit=limit, offset=offset)
+        campaigns = await service.list_campaigns(filters=filters, limit=limit, offset=offset)
 
         return {
             "campaigns": campaigns,
@@ -89,7 +89,7 @@ async def list_campaigns(
 async def get_campaign_details(
     request: Request,
     campaign_id: int = Path(..., description="Campaign ID"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get detailed campaign information including statistics and timeline
@@ -102,7 +102,7 @@ async def get_campaign_details(
     """
     try:
         service = CampaignManagementService(db)
-        details = service.get_campaign_details(campaign_id)
+        details = await service.get_campaign_details(campaign_id)
         return details
 
     except ValueError as e:
@@ -123,7 +123,7 @@ async def get_campaign_details(
 async def pause_campaign(
     request: Request,
     campaign_id: int = Path(..., description="Campaign ID"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Pause an executing campaign
@@ -182,7 +182,7 @@ async def pause_campaign(
 async def resume_campaign(
     request: Request,
     campaign_id: int = Path(..., description="Campaign ID"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Resume a paused campaign from where it left off.
@@ -248,7 +248,7 @@ async def get_campaign_logs(
     recipient: Optional[str] = Query(None, description="Filter by recipient phone (partial match)"),
     limit: int = Query(50, ge=1, le=200, description="Number of messages to return"),
     offset: int = Query(0, ge=0, description="Number of messages to skip"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get campaign message logs with filtering and pagination
@@ -274,7 +274,7 @@ async def get_campaign_logs(
         if recipient:
             filters['recipient'] = recipient
 
-        messages = service.get_campaign_logs(campaign_id, filters=filters, limit=limit, offset=offset)
+        messages = await service.get_campaign_logs(campaign_id, filters=filters, limit=limit, offset=offset)
 
         return {
             "logs": messages,  # Changed from "messages" to "logs" to match spec
@@ -302,7 +302,7 @@ async def get_campaign_logs(
 async def delete_campaign(
     request: Request,
     campaign_id: int = Path(..., description="Campaign ID"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Delete a campaign and all its messages
@@ -318,7 +318,7 @@ async def delete_campaign(
     """
     try:
         service = CampaignManagementService(db)
-        service.delete_campaign(campaign_id)
+        await service.delete_campaign(campaign_id)
 
         return Response(status_code=http_status.HTTP_204_NO_CONTENT)
 
@@ -348,7 +348,7 @@ async def get_campaign_statistics(
     ghl_location_id: Optional[str] = Query(None, description="Filter by GHL location ID"),
     from_date: Optional[datetime] = Query(None, description="Filter campaigns created after this date"),
     to_date: Optional[datetime] = Query(None, description="Filter campaigns created before this date"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get aggregate campaign statistics
@@ -375,7 +375,7 @@ async def get_campaign_statistics(
         if to_date:
             filters['to_date'] = to_date
 
-        statistics = service.get_campaign_statistics(filters=filters)
+        statistics = await service.get_campaign_statistics(filters=filters)
 
         return statistics
 
@@ -394,7 +394,7 @@ async def get_campaign_statistics(
 async def create_campaign(
     request: Request,
     campaign_data: CampaignCreateRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     POST /api/v1/campaigns — Create and optionally execute a campaign via GHL.
