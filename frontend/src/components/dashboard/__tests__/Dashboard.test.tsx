@@ -110,4 +110,35 @@ describe('Dashboard', () => {
     await waitFor(() => screen.getByTestId('campaign-status-chart'));
     expect(screen.getByTestId('campaign-status-chart')).toBeInTheDocument();
   });
+
+  it('makes two fetch calls for current and previous period', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => mockDashboardData,
+    });
+
+    render(<Dashboard />);
+    await waitFor(() => screen.getByTestId('fetched-at'));
+
+    // Two calls: days=30 and days=60
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const urls = mockFetch.mock.calls.map((c: any[]) => c[0] as string);
+    expect(urls.some((u: string) => u.includes('days=30') || !u.includes('days='))).toBe(true);
+    expect(urls.some((u: string) => u.includes('days=60'))).toBe(true);
+  });
+
+  it('does not crash when previous period fetch fails', async () => {
+    let callCount = 0;
+    mockFetch.mockImplementation(() => {
+      callCount++;
+      if (callCount === 2) {
+        return Promise.resolve({ ok: false, json: async () => ({}) });
+      }
+      return Promise.resolve({ ok: true, json: async () => mockDashboardData });
+    });
+
+    render(<Dashboard />);
+    await waitFor(() => screen.getByTestId('fetched-at'));
+    expect(screen.queryByText(/Error Loading/)).not.toBeInTheDocument();
+  });
 });

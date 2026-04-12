@@ -17,6 +17,9 @@ interface DashboardProps {
   onNavigateToManagement?: () => void; // Callback para navegar para gerenciamento de campanhas
 }
 
+const computeChange = (current: number, previous: number): number =>
+  previous > 0 ? ((current - previous) / previous) * 100 : 0;
+
 const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampaign, onNavigateToManagement }) => {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,6 +27,11 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
   const [userFilter, setUserFilter] = useState<string>(defaultUserId || '');
   const [timeRange, setTimeRange] = useState<number>(30);
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
+  const [changes, setChanges] = useState<{
+    activeCampaigns: number;
+    sent: number;
+    deliveryRate: number;
+  } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   // Fetch dashboard data
@@ -32,6 +40,7 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
     const controller = new AbortController();
     abortRef.current = controller;
     setFetchedAt(null);
+    setChanges(null);
     setLoading(true);
     setError(null);
 
@@ -48,12 +57,17 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
         queryParams.append('days', params.days.toString());
       }
 
+      const prevDays = Math.min((params.days || 30) * 2, 365);
+      const prevQueryParams = new URLSearchParams(queryParams);
+      prevQueryParams.set('days', prevDays.toString());
+
       // Add timeout to prevent hanging
       const timeoutId = setTimeout(() => controller.abort(), 7000);
 
-      const response = await fetch(`${API_BASE_URL}/api/v1/analytics/dashboard?${queryParams}`, {
-        signal: controller.signal,
-      });
+      const [response, prevResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/v1/analytics/dashboard?${queryParams}`, { signal: controller.signal }),
+        fetch(`${API_BASE_URL}/api/v1/analytics/dashboard?${prevQueryParams}`, { signal: controller.signal }),
+      ]);
 
       clearTimeout(timeoutId);
 
@@ -62,6 +76,23 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
       }
 
       const data = await response.json();
+
+      if (prevResponse.ok) {
+        const prevData = await prevResponse.json();
+        // previous period = 2×period total − current period
+        const prevActiveCampaigns =
+          (prevData.campaign_metrics.active_campaigns || 0) -
+          (data.campaign_metrics.active_campaigns || 0);
+        const prevSent =
+          (prevData.delivery_metrics.sent || 0) - (data.delivery_metrics.sent || 0);
+        const prevDeliveryRate = prevData.delivery_metrics.delivery_rate || 0;
+
+        setChanges({
+          activeCampaigns: computeChange(data.campaign_metrics.active_campaigns || 0, prevActiveCampaigns),
+          sent: computeChange(data.delivery_metrics.sent || 0, prevSent),
+          deliveryRate: computeChange(data.delivery_metrics.delivery_rate || 0, prevDeliveryRate),
+        });
+      }
 
       // Set the metrics directly from the API response
       setMetrics(data);
@@ -201,33 +232,45 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <MetricCard
           title="Campanhas Ativas"
-          value={metrics?.campaign_metrics.active_campaigns || 0}
-          previousValue={(metrics?.campaign_metrics.active_campaigns || 0) - 2}
-          change={15.2}
-          changeType="increase"
+          value={metrics.campaign_metrics.active_campaigns}
+          change={changes ? Math.abs(changes.activeCampaigns) : undefined}
+          changeType={
+            changes
+              ? changes.activeCampaigns >= 0 ? 'increase' : 'decrease'
+              : 'neutral'
+          }
           format="number"
           icon={<MessageSquare />}
           loading={loading}
+          period={`Últimos ${timeRange} dias`}
         />
         <MetricCard
           title="Mensagens Enviadas"
-          value={metrics?.delivery_metrics.sent || 0}
-          previousValue={(metrics?.delivery_metrics.sent || 0) - 1200}
-          change={8.7}
-          changeType="increase"
+          value={metrics.delivery_metrics.sent}
+          change={changes ? Math.abs(changes.sent) : undefined}
+          changeType={
+            changes
+              ? changes.sent >= 0 ? 'increase' : 'decrease'
+              : 'neutral'
+          }
           format="number"
           icon={<TrendingUp />}
           loading={loading}
+          period={`Últimos ${timeRange} dias`}
         />
         <MetricCard
           title="Taxa de Entrega"
-          value={metrics?.delivery_metrics.delivery_rate || 0}
-          previousValue={(metrics?.delivery_metrics.delivery_rate || 0) - 2.1}
-          change={2.4}
-          changeType="increase"
+          value={metrics.delivery_metrics.delivery_rate}
+          change={changes ? Math.abs(changes.deliveryRate) : undefined}
+          changeType={
+            changes
+              ? changes.deliveryRate >= 0 ? 'increase' : 'decrease'
+              : 'neutral'
+          }
           format="percentage"
           icon={<CheckCircle />}
           loading={loading}
+          period={`Últimos ${timeRange} dias`}
         />
       </div>
 
