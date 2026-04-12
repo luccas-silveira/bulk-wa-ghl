@@ -8,9 +8,12 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
 import { parsePhoneNumber, isValidPhoneNumber } from 'libphonenumber-js';
+import { Loader2 } from 'lucide-react';
 import { CampaignFormData, CampaignCreateRequest, ContactCsvData, SendingSpeed, ScheduleType } from '../../types/api';
 import { useGHLUsers } from '../../hooks/useGHLUsers';
 import { useToast } from '../ui/Toast';
+
+const COLUMN_MAPPING_KEY = 'campaign-wizard-column-mapping';
 
 interface CampaignWizardProps {
   onSubmit: (campaign: CampaignCreateRequest) => Promise<void>;
@@ -41,10 +44,14 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
     phone: string;
     name: string;
     email: string;
-  }>({
-    phone: '',
-    name: '',
-    email: ''
+  }>(() => {
+    try {
+      const saved = localStorage.getItem(COLUMN_MAPPING_KEY);
+      if (saved) return JSON.parse(saved) as { phone: string; name: string; email: string };
+    } catch {
+      // ignore invalid JSON or storage access errors
+    }
+    return { phone: '', name: '', email: '' };
   });
   const [showMapping, setShowMapping] = useState(false);
 
@@ -84,6 +91,14 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
   React.useEffect(() => {
     stepHeadingRef.current?.focus();
   }, [currentStep]);
+
+  React.useEffect(() => {
+    try {
+      localStorage.setItem(COLUMN_MAPPING_KEY, JSON.stringify(columnMapping));
+    } catch {
+      // ignore storage full / private browsing errors
+    }
+  }, [columnMapping]);
 
   // Handle CSV file upload and parsing
   const MAX_CSV_SIZE_MB = 10;
@@ -843,8 +858,16 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
                 type="submit"
                 onClick={handleSubmit}
                 disabled={loading}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                data-testid="wizard-submit-btn"
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 inline-flex items-center gap-2"
               >
+                {loading && (
+                  <Loader2
+                    data-testid="submit-spinner"
+                    className="animate-spin h-4 w-4"
+                    aria-hidden="true"
+                  />
+                )}
                 {loading ? 'Criando...' : 'Criar Campanha'}
               </button>
             )}

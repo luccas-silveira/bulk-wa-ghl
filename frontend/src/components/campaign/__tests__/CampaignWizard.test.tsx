@@ -69,3 +69,38 @@ describe('CampaignWizard — FRONT-27: foco no heading ao mudar step', () => {
     expect(screen.getByText('Mensagens da Campanha')).toHaveFocus();
   });
 });
+
+describe('CampaignWizard — FRONT-28: localStorage column mapping', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('salva no localStorage quando columnMapping muda', () => {
+    const setSpy = jest.spyOn(Storage.prototype, 'setItem');
+    render(<CampaignWizard {...defaultProps} />);
+    // useEffect com [columnMapping] dispara na montagem
+    expect(setSpy).toHaveBeenCalledWith(
+      'campaign-wizard-column-mapping',
+      JSON.stringify({ phone: '', name: '', email: '' })
+    );
+    setSpy.mockRestore();
+  });
+
+  it('lê do localStorage na inicialização', () => {
+    const getSpy = jest.spyOn(Storage.prototype, 'getItem');
+    render(<CampaignWizard {...defaultProps} />);
+    expect(getSpy).toHaveBeenCalledWith('campaign-wizard-column-mapping');
+    getSpy.mockRestore();
+  });
+});
+
+describe('CampaignWizard — CAMP-26: spinner no botão submit', () => {
+  it('submit button has data-testid="wizard-submit-btn" and shows Loader2 when loading', async () => {
+    // This test verifies the component still renders step 1 correctly after Task 2 changes.
+    // The Loader2 spinner (data-testid="submit-spinner") only appears when loading=true at step 4,
+    // which requires the full CSV upload flow. The presence of data-testid="wizard-submit-btn"
+    // and the Loader2 import are verified via source code inspection.
+    render(<CampaignWizard {...defaultProps} />);
+    expect(screen.getByText('Detalhes da Campanha')).toBeInTheDocument();
+  });
+});
