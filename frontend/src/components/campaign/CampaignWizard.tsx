@@ -51,6 +51,8 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
   // Toast hook
   const { addToast } = useToast();
 
+  const stepHeadingRef = React.useRef<HTMLHeadingElement>(null);
+
   // Load users for fixed location
   const { users, loading: usersLoading, error: usersError } = useGHLUsers({
     locationId: formData.ghl_location_id,
@@ -78,6 +80,10 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
+
+  React.useEffect(() => {
+    stepHeadingRef.current?.focus();
+  }, [currentStep]);
 
   // Handle CSV file upload and parsing
   const MAX_CSV_SIZE_MB = 10;
@@ -317,6 +323,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
   };
 
   const prevStep = () => {
+    setErrors({});
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
@@ -359,7 +366,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
         {/* Step 1: Basic Information */}
         {currentStep === 1 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-gray-900">Detalhes da Campanha</h2>
+            <h2 ref={stepHeadingRef} tabIndex={-1} className="text-xl font-semibold text-gray-900">Detalhes da Campanha</h2>
 
             {/* Campaign Name */}
             <div>
@@ -535,7 +542,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
         {/* Step 2: Messages */}
         {currentStep === 2 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-gray-900">Mensagens da Campanha</h2>
+            <h2 ref={stepHeadingRef} tabIndex={-1} className="text-xl font-semibold text-gray-900">Mensagens da Campanha</h2>
             <p className="text-sm text-gray-600">Adicione até 3 mensagens para sua campanha</p>
 
             {formData.messages.map((message, index) => (
@@ -604,7 +611,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
         {/* Step 3: Audience - CSV Upload with Column Mapping */}
         {currentStep === 3 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-gray-900">Upload de Contatos</h2>
+            <h2 ref={stepHeadingRef} tabIndex={-1} className="text-xl font-semibold text-gray-900">Upload de Contatos</h2>
             <p className="text-sm text-gray-600">Faça upload de um arquivo CSV e mapeie as colunas</p>
 
             <div className="space-y-4">
@@ -766,7 +773,7 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
         {/* Step 4: Review */}
         {currentStep === 4 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-gray-900">Revisar Campanha</h2>
+            <h2 ref={stepHeadingRef} tabIndex={-1} className="text-xl font-semibold text-gray-900">Revisar Campanha</h2>
 
             <div className="bg-gray-50 p-4 rounded-lg space-y-3">
               <div>
