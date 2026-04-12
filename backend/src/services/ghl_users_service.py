@@ -6,7 +6,8 @@ import os
 import httpx
 import logging
 from typing import List, Dict, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from dotenv import load_dotenv
 from src.models.ghl_user import GHLUser
@@ -21,7 +22,7 @@ class GHLUsersService:
 
     BASE_URL = "https://services.leadconnectorhq.com"
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
         # Check if using private token or OAuth
         self.private_token = os.getenv("GHL_PRIVATE_TOKEN")
@@ -102,7 +103,10 @@ class GHLUsersService:
                 continue
             api_user_ids.add(ghl_user_id)
 
-            existing_user = self.db.query(GHLUser).filter_by(ghl_user_id=ghl_user_id).first()
+            ex_result = await self.db.execute(
+                select(GHLUser).where(GHLUser.ghl_user_id == ghl_user_id)
+            )
+            existing_user = ex_result.scalar_one_or_none()
 
             if existing_user:
                 existing_user.name = user_data.get('name', '')
@@ -126,21 +130,26 @@ class GHLUsersService:
 
         # GHL-15: mark users removed from GHL as inactive
         if api_user_ids:
-            self.db.query(GHLUser).filter(
-                GHLUser.ghl_location_id == location_id
-            ).filter(
-                GHLUser.ghl_user_id.notin_(api_user_ids),
-            ).update({'is_active': False}, synchronize_session=False)
+            await self.db.execute(
+                update(GHLUser)
+                .where(
+                    GHLUser.ghl_location_id == location_id,
+                    GHLUser.ghl_user_id.notin_(api_user_ids),
+                )
+                .values(is_active=False)
+            )
         else:
             # API returned empty → mark ALL local users for this location inactive
-            self.db.query(GHLUser).filter(
-                GHLUser.ghl_location_id == location_id
-            ).update({'is_active': False}, synchronize_session=False)
+            await self.db.execute(
+                update(GHLUser)
+                .where(GHLUser.ghl_location_id == location_id)
+                .values(is_active=False)
+            )
 
-        self.db.commit()
+        await self.db.commit()
         return synced_users
 
-    def get_users_by_location(self, location_id: str, active_only: bool = True) -> List[GHLUser]:
+    async def get_users_by_location(self, location_id: str, active_only: bool = True) -> List[GHLUser]:
         """
         Get users from database for a location
 
@@ -151,9 +160,8 @@ class GHLUsersService:
         Returns:
             List of GHLUser models
         """
-        query = self.db.query(GHLUser).filter_by(ghl_location_id=location_id)
-
+        stmt = select(GHLUser).where(GHLUser.ghl_location_id == location_id)
         if active_only:
-            query = query.filter_by(is_active=True)
-
-        return query.all()
+            stmt = stmt.where(GHLUser.is_active == True)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())

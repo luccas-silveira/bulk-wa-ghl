@@ -2,7 +2,7 @@
 GHL Users API Endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from src.database import get_db
 from src.services.ghl_users_service import GHLUsersService
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/ghl", tags=["GHL Users"])
 async def get_users_by_location(
     location_id: str = Query(..., description="GHL Location ID"),
     sync: bool = Query(False, description="Sync from GHL API before returning"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get users for a GHL location
@@ -35,7 +35,7 @@ async def get_users_by_location(
             users = await service.sync_users_for_location(location_id)
         else:
             # Get from database, but if empty, fetch from API once
-            users = service.get_users_by_location(location_id, active_only=True)
+            users = await service.get_users_by_location(location_id, active_only=True)
             if not users:
                 users = await service.sync_users_for_location(location_id)
 
@@ -54,7 +54,7 @@ async def get_users_by_location(
 @router.post("/users/sync/{location_id}")
 async def sync_users(
     location_id: str,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Manually sync users from GHL API for a location
