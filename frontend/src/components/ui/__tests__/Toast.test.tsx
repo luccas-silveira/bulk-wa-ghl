@@ -88,3 +88,59 @@ describe('ToastProvider — memory leak fix (FRONT-08)', () => {
     expect(screen.queryByText('Test toast')).not.toBeInTheDocument();
   });
 });
+
+describe('ToastProvider — FIFO eviction (FRONT-10)', () => {
+  beforeEach(() => { jest.useFakeTimers(); });
+  afterEach(() => { jest.runOnlyPendingTimers(); jest.useRealTimers(); });
+
+  it('evicts oldest toast when adding a 6th', async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+    const MultiTrigger: React.FC = () => {
+      const { addToast } = useToast();
+      return (
+        <>
+          {Array.from({ length: 6 }, (_, i) => (
+            <button
+              key={i}
+              data-testid={`trigger-${i}`}
+              onClick={() => addToast({ type: 'success', title: `Toast ${i}`, duration: 60000 })}
+            >
+              Add {i}
+            </button>
+          ))}
+        </>
+      );
+    };
+
+    render(<ToastProvider><MultiTrigger /></ToastProvider>);
+
+    for (let i = 0; i < 6; i++) {
+      await user.click(screen.getByTestId(`trigger-${i}`));
+    }
+
+    // Only 5 visible — toast 0 was evicted
+    expect(screen.queryByText('Toast 0')).not.toBeInTheDocument();
+    expect(screen.getByText('Toast 5')).toBeInTheDocument();
+    expect(screen.getAllByRole('alert')).toHaveLength(5);
+  });
+});
+
+describe('ToastProvider — ARIA (FRONT-09)', () => {
+  it('ToastContainer has role=region aria-live=polite', () => {
+    render(<ToastProvider><div /></ToastProvider>);
+    const region = screen.getByRole('region', { name: 'Notificações' });
+    expect(region).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('individual toast has role=alert', async () => {
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <ToastTrigger duration={10000} />
+      </ToastProvider>
+    );
+    await user.click(screen.getByTestId('trigger'));
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+  });
+});

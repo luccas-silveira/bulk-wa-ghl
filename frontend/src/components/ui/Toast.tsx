@@ -56,7 +56,18 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ...toastData,
     };
 
-    setToasts(prev => [...prev, toast]);
+    setToasts(prev => {
+      if (prev.length >= 5) {
+        const [oldest, ...rest] = prev;
+        const existingTimer = timersRef.current.get(oldest.id);
+        if (existingTimer !== undefined) {
+          clearTimeout(existingTimer);
+          timersRef.current.delete(oldest.id);
+        }
+        return [...rest, toast];
+      }
+      return [...prev, toast];
+    });
 
     // Registrar timer no Map para poder cancelar no cleanup ou no removeToast
     if (toast.duration && toast.duration > 0) {
@@ -96,7 +107,12 @@ const ToastContainer: React.FC = () => {
   const { toasts } = useToast();
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 space-y-3 max-w-md w-full">
+    <div
+      role="region"
+      aria-live="polite"
+      aria-label="Notificações"
+      className="fixed bottom-4 right-4 z-50 space-y-3 max-w-md w-full"
+    >
       {toasts.map(toast => (
         <Toast key={toast.id} toast={toast} />
       ))}
@@ -155,12 +171,13 @@ const Toast: React.FC<{ toast: ToastData }> = ({ toast }) => {
 
   return (
     <div
+      role="alert"
       className={`
         transform transition-all duration-200 ease-in-out
         ${animationClasses}
         ${getToastColors()}
-        border rounded-lg shadow-lg p-4 flex items-start space-x-3
-        hover:shadow-xl transition-shadow duration-200
+        border rounded-lg shadow-ghl-lg p-4 flex items-start space-x-3
+        hover:shadow-ghl-lg transition-shadow duration-200
       `}
     >
       {/* Icon */}
