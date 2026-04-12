@@ -16,8 +16,10 @@ import {
 import Card, { CardHeader, CardBody } from '../ui/Card';
 import Button from '../ui/Button';
 import CampaignStatusBadge from './CampaignStatusBadge';
+import MessageStatusBadge from './MessageStatusBadge';
 import CampaignActions from './CampaignActions';
 import { campaignService } from '../../services/campaign-service';
+import type { MessageStatus } from '../../types/campaign';
 
 export interface CampaignDetailsProps {
   campaignId: number;
@@ -37,8 +39,8 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({ campaignId, onClose }
   const pauseMutation = useMutation({
     mutationFn: () => campaignService.pauseCampaign(campaignId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] });
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign', campaignId], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['campaigns'], exact: false });
     },
   });
 
@@ -46,8 +48,8 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({ campaignId, onClose }
   const resumeMutation = useMutation({
     mutationFn: () => campaignService.resumeCampaign(campaignId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] });
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign', campaignId], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['campaigns'], exact: false });
     },
   });
 
@@ -55,7 +57,7 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({ campaignId, onClose }
   const deleteMutation = useMutation({
     mutationFn: () => campaignService.deleteCampaign(campaignId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaigns'], exact: false });
       onClose?.();
     },
   });
@@ -260,9 +262,8 @@ const CampaignDetails: React.FC<CampaignDetailsProps> = ({ campaignId, onClose }
                         </div>
                       </div>
                       <div className="ml-4">
-                        <CampaignStatusBadge
-                          status={message.status as any}
-                          showDot
+                        <MessageStatusBadge
+                          status={message.status as MessageStatus}
                         />
                       </div>
                     </div>

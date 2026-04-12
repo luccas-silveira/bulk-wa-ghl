@@ -1,15 +1,23 @@
 """
 Campaign Management API Endpoints
-Provides campaign listing, details, logs, statistics, pause/resume, and deletion
+Provides campaign listing, details, logs, statistics, pause/resume, deletion,
+and campaign creation (moved from main.py as part of RAIZ-09).
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, Request, Response, status as http_status
 from sqlalchemy.orm import Session
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
+import asyncio
+import logging
 
-from src.database import get_db
+from src.database import get_db, SessionLocal
 from src.limiter import limiter
 from src.services.campaign_management_service import CampaignManagementService
+from src.schemas.campaign import CampaignCreateRequest
+from src.models.campaign import Campaign
+from src.services.campaign_executor_service import CampaignExecutorService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/campaigns", tags=["Campaign Management"])
 
@@ -379,3 +387,126 @@ async def get_campaign_statistics(
                 "message": f"Failed to get campaign statistics: {str(e)}"
             }
         )
+
+
+@router.post("", status_code=http_status.HTTP_201_CREATED, response_model=dict)
+@limiter.limit("30/minute")
+async def create_campaign(
+    request: Request,
+    campaign_data: CampaignCreateRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    POST /api/v1/campaigns — Create and optionally execute a campaign via GHL.
+    Moved from main.py (RAIZ-09). Validates input with Pydantic schema.
+    Returns 422 for invalid data.
+    """
+    logger.info("Campaign creation request received via /api/v1/campaigns")
+
+    ghl_location_id = campaign_data.ghl_location_id
+    name = campaign_data.name
+    ghl_user_id = campaign_data.ghl_user_id
+    ghl_user_ids = campaign_data.ghl_user_ids
+    sending_speed = campaign_data.sending_speed
+    schedule_type = campaign_data.schedule_type
+    scheduled_time = campaign_data.scheduled_time
+    messages = [m.model_dump() for m in campaign_data.messages]
+    csv_data = [c.model_dump() for c in campaign_data.audience_criteria.csv_data]
+
+    logger.info(
+        f"Campaign data: schedule_type={schedule_type}, "
+        f"contacts={len(csv_data)}, messages={len(messages)}"
+    )
+
+    parsed_scheduled_time = None
+    if scheduled_time:
+        try:
+            parsed_scheduled_time = datetime.fromisoformat(
+                scheduled_time.replace("Z", "+00:00")
+            )
+        except Exception as e:
+            logger.error(f"Failed to parse scheduled_time: {scheduled_time}, error: {e}")
+
+    campaign = Campaign(
+        name=name,
+        status="draft",
+        ghl_location_id=ghl_location_id,
+        ghl_user_id=ghl_user_id,
+        sending_speed=sending_speed,
+        schedule_type=schedule_type,
+        scheduled_time=parsed_scheduled_time,
+    )
+
+    if ghl_user_ids and isinstance(ghl_user_ids, list) and len(ghl_user_ids) > 0:
+        campaign.set_user_ids_list(ghl_user_ids)
+        logger.info(f"Multiple users set: {ghl_user_ids}")
+    elif ghl_user_id:
+        campaign.set_user_ids_list([ghl_user_id])
+        logger.info(f"Single user set: {ghl_user_id}")
+
+    db.add(campaign)
+    db.commit()
+    db.refresh(campaign)
+
+    campaign_id = campaign.id
+    logger.info(f"Campaign {campaign_id} created: '{name}' with {len(csv_data)} recipients")
+
+    campaign.contacts_data = csv_data
+    campaign.messages_template = messages
+    db.commit()
+
+    campaign_response = {
+        "id": campaign.id,
+        "name": campaign.name,
+        "status": campaign.status,
+        "ghl_location_id": campaign.ghl_location_id,
+        "ghl_user_id": campaign.ghl_user_id,
+        "sending_speed": campaign.sending_speed,
+        "schedule_type": campaign.schedule_type,
+        "created_at": campaign.created_at.isoformat() if campaign.created_at else None,
+        "estimated_recipients": len(csv_data),
+    }
+
+    if schedule_type == "immediate" and len(csv_data) > 0:
+        logger.info(f"Starting background execution for campaign {campaign_id}")
+
+        async def execute_campaign_background():
+            db_session = SessionLocal()
+            try:
+                executor = CampaignExecutorService(db_session)
+                result = await executor.execute_campaign(
+                    campaign_id=campaign_id,
+                    contacts=csv_data,
+                    messages_template=messages,
+                )
+                logger.info(f"Campaign {campaign_id} completed: {result}")
+            except Exception as e:
+                logger.error(
+                    f"Error executing campaign {campaign_id}: {str(e)}", exc_info=True
+                )
+            finally:
+                db_session.close()
+
+        asyncio.create_task(execute_campaign_background())
+
+    elif schedule_type == "scheduled" and parsed_scheduled_time and len(csv_data) > 0:
+        logger.info(f"Scheduling campaign {campaign_id} for {parsed_scheduled_time}")
+        try:
+            from src.main import scheduler as _scheduler
+            _scheduler.schedule_campaign(
+                campaign_id=campaign_id,
+                scheduled_time=parsed_scheduled_time,
+                csv_data=csv_data,
+                messages=messages,
+            )
+            campaign.status = "scheduled"
+            db.commit()
+            campaign_response["status"] = "scheduled"
+            logger.info(f"Campaign {campaign_id} scheduled successfully")
+        except Exception as e:
+            logger.error(f"Failed to schedule campaign {campaign_id}: {str(e)}")
+            campaign.status = "failed"
+            db.commit()
+            campaign_response["status"] = "failed"
+
+    return campaign_response

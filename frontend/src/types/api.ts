@@ -27,9 +27,7 @@ export interface CampaignMessage {
 }
 
 export interface AudienceCriteria {
-  filter_type: 'all_contacts' | 'csv_upload' | 'tag_based';
-  csv_data?: ContactCsvData[];
-  tag_filters?: TagFilters;
+  csv_data: ContactCsvData[];
 }
 
 export interface ContactCsvData {
@@ -37,11 +35,6 @@ export interface ContactCsvData {
   name?: string;
   email?: string;
   [key: string]: string | undefined; // Additional custom fields
-}
-
-export interface TagFilters {
-  logic: 'AND' | 'OR';
-  tags: string[];
 }
 
 export interface CampaignResponse {

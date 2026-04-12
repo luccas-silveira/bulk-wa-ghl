@@ -3,18 +3,30 @@
  * Main page for campaign management with list and details views
  */
 import React, { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import CampaignList from '../components/campaign/CampaignList';
 import CampaignDetails from '../components/campaign/CampaignDetails';
+import type { CampaignStatus } from '../types/campaign';
 
 export interface CampaignsPageProps {
   onCreateCampaign?: () => void;
 }
 
+const VALID_STATUSES: CampaignStatus[] = [
+  'draft', 'scheduled', 'executing', 'paused', 'completed', 'failed', 'cancelled',
+];
+
 const CampaignsPage: React.FC<CampaignsPageProps> = ({ onCreateCampaign }) => {
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
+  const [searchParams] = useSearchParams();
+
+  const rawStatus = searchParams.get('status');
+  const statusFilter = VALID_STATUSES.includes(rawStatus as CampaignStatus)
+    ? (rawStatus as CampaignStatus)
+    : undefined;
 
   return (
     <div className="space-y-6">
@@ -49,6 +61,7 @@ const CampaignsPage: React.FC<CampaignsPageProps> = ({ onCreateCampaign }) => {
 
       {/* Campaign List */}
       <CampaignList
+        defaultFilters={statusFilter ? { status: statusFilter } : {}}
         onCampaignClick={(campaignId) => setSelectedCampaignId(campaignId)}
       />
     </div>

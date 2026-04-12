@@ -10,6 +10,7 @@ import Papa from 'papaparse';
 import { parsePhoneNumber, isValidPhoneNumber } from 'libphonenumber-js';
 import { CampaignFormData, CampaignCreateRequest, ContactCsvData, SendingSpeed, ScheduleType } from '../../types/api';
 import { useGHLUsers } from '../../hooks/useGHLUsers';
+import { useToast } from '../ui/Toast';
 
 interface CampaignWizardProps {
   onSubmit: (campaign: CampaignCreateRequest) => Promise<void>;
@@ -47,11 +48,36 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
   });
   const [showMapping, setShowMapping] = useState(false);
 
+  // Toast hook
+  const { addToast } = useToast();
+
   // Load users for fixed location
   const { users, loading: usersLoading, error: usersError } = useGHLUsers({
     locationId: formData.ghl_location_id,
     autoFetch: true,
   });
+
+  // Check if form is dirty (has unsaved changes)
+  const isDirty = React.useMemo(() => {
+    return (
+      formData.name.trim().length > 0 ||
+      (formData.ghl_user_ids?.length ?? 0) > 0 ||
+      formData.messages.some((m) => m.text.trim() || (m.media_url ?? '').trim()) ||
+      parsedContacts.length > 0
+    );
+  }, [formData, parsedContacts]);
+
+  // Show beforeunload warning when form is dirty
+  React.useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
 
   // Handle CSV file upload and parsing
   const MAX_CSV_SIZE_MB = 10;
@@ -178,6 +204,8 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
 
     if (errors.length > 0) {
       setCsvParseError(`Erros encontrados:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? `\n... e mais ${errors.length - 5} erros` : ''}`);
+    } else {
+      setCsvParseError(null); // clear any stale error from a previous failed parse
     }
 
     if (contacts.length === 0) {
@@ -185,7 +213,6 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
       setParsedContacts([]);
     } else {
       setParsedContacts(contacts);
-      setCsvParseError(null);
       setShowMapping(false);
     }
   };
@@ -237,6 +264,18 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
   const handleSubmit = async () => {
     if (!validateStep(3)) return;
 
+    // Guard: ensure at least one message has text or media_url before submitting
+    const validMessages = formData.messages.filter(
+      (msg) => msg.text.trim() || (msg.media_url ?? '').trim()
+    );
+    if (validMessages.length === 0) {
+      setErrors((prev) => ({
+        ...prev,
+        messages: 'Pelo menos uma mensagem com texto ou URL de mídia é obrigatória',
+      }));
+      return;
+    }
+
     setLoading(true);
     try {
       const campaignRequest: CampaignCreateRequest = {
@@ -246,26 +285,25 @@ const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) =
         sending_speed: formData.sending_speed,
         schedule_type: formData.schedule_type,
         scheduled_time: formData.scheduled_time?.toISOString(),
-        messages: formData.messages
-          .filter(msg => msg.text.trim())
-          .map((msg, index) => ({
-            text: msg.text,
-            media_url: msg.media_url || undefined,
-            order: index + 1,
-          })),
+        messages: validMessages.map((msg, index) => ({
+          text: msg.text,
+          media_url: msg.media_url || undefined,
+          order: index + 1,
+        })),
         audience_criteria: {
-          filter_type: formData.audience_type,
-          csv_data: formData.audience_type === 'csv_upload' ? parsedContacts : undefined,
-          tag_filters: formData.audience_type === 'tag_based' ? {
-            logic: formData.tag_filters?.logic || 'AND',
-            tags: formData.tag_filters?.selected_tags || [],
-          } : undefined,
+          csv_data: parsedContacts,
         },
       };
 
       await onSubmit(campaignRequest);
-    } catch {
-      // Error is handled by the parent via onSubmit rejection
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Erro desconhecido ao criar campanha';
+      addToast({
+        type: 'error',
+        title: 'Erro ao criar campanha',
+        message,
+      });
     } finally {
       setLoading(false);
     }

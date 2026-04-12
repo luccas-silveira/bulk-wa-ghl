@@ -50,7 +50,7 @@ const CampaignList: React.FC<CampaignListProps> = ({
   const pauseMutation = useMutation({
     mutationFn: (campaignId: number) => campaignService.pauseCampaign(campaignId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaigns'], exact: false });
     },
   });
 
@@ -58,7 +58,7 @@ const CampaignList: React.FC<CampaignListProps> = ({
   const resumeMutation = useMutation({
     mutationFn: (campaignId: number) => campaignService.resumeCampaign(campaignId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaigns'], exact: false });
     },
   });
 
@@ -66,7 +66,7 @@ const CampaignList: React.FC<CampaignListProps> = ({
   const deleteMutation = useMutation({
     mutationFn: (campaignId: number) => campaignService.deleteCampaign(campaignId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaigns'], exact: false });
     },
   });
 
@@ -199,8 +199,8 @@ const CampaignList: React.FC<CampaignListProps> = ({
             <tbody className="bg-white divide-y divide-gray-200">
               {data.campaigns.map((campaign) => {
                 const deliveryRate =
-                  campaign.message_stats.total > 0
-                    ? ((campaign.message_stats.delivered / campaign.message_stats.total) * 100).toFixed(1)
+                  (campaign.message_stats?.total ?? 0) > 0
+                    ? (((campaign.message_stats?.delivered ?? 0) / (campaign.message_stats?.total ?? 1)) * 100).toFixed(1)
                     : '0.0';
 
                 return (
@@ -223,11 +223,11 @@ const CampaignList: React.FC<CampaignListProps> = ({
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {campaign.message_stats.sent} / {campaign.message_stats.total}
+                        {campaign.message_stats?.sent ?? 0} / {campaign.message_stats?.total ?? 0}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {campaign.message_stats.failed > 0 && (
-                          <span className="text-error-600">{campaign.message_stats.failed} falhas</span>
+                        {(campaign.message_stats?.failed ?? 0) > 0 && (
+                          <span className="text-error-600">{campaign.message_stats?.failed ?? 0} falhas</span>
                         )}
                       </div>
                     </td>
