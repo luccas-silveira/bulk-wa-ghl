@@ -76,7 +76,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       if (loading) {
         return <Loader2 className={`${iconSizes[size]} animate-spin`} />;
       }
-      if (icon) {
+      if (React.isValidElement(icon)) {
         return React.cloneElement(icon as React.ReactElement, {
           className: iconSizes[size]
         });
@@ -85,6 +85,10 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     };
 
     const iconElement = renderIcon();
+
+    if (process.env.NODE_ENV !== 'production' && !children && !props['aria-label']) {
+      console.warn('[Button] Botão sem texto visível e sem aria-label. Adicione aria-label para acessibilidade.');
+    }
 
     return (
       <button
