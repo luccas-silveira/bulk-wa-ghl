@@ -2,7 +2,7 @@
 
 **Propósito:** rastreamento operacional do [plano mestre](plano-implementacao-mestre.md).
 **Fonte da verdade descritiva:** `plano-implementacao-mestre.md` contém descrição detalhada de cada item (arquivo, linha, ação específica, critérios de conclusão). Este documento só rastreia status e serve como painel executável.
-**Última atualização:** 2026-04-12 (EPIC-16 marcado completo — 164/172 itens; Fase 2: 51/52)
+**Última atualização:** 2026-04-12 (PERS-25 marcado completo — 165/172 itens; **Fase 2: 52/52 COMPLETA** ✅)
 **Branch ativa:** `004-campaign-management`
 
 ---
@@ -20,9 +20,9 @@
 |------|----------|-----------------|------:|-----------:|
 | **0** — Bloqueadores de produção | Sistema deployável, seguro, timezone correto, secrets validados, pool controlado, dashboard sem dados fake | EPIC-01, 02, 03, 04, 05 (críticos/altos), 06 (validadores), 11 (ANA-01/02/03) | 41 | 41 |
 | **1** — Estabilidade e segurança | State machine, webhooks idempotentes, telefone E.164, router frontend, UI crítica, infra de deploy, observabilidade | EPIC-05 (resto), 06 (resto), 07, 08, 09, 12, 13 (críticos), 14 (críticos/altos), 15, 17 | 73 | 66 |
-| **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 51 |
+| **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 52 |
 | **Fora de fase** | EPIC-18 Opção B (remoção WAHA) + RAIZ-09 (endpoint createCampaign) | EPIC-18, RAIZ-09 | 6 | 6 |
-| **Total** | | | **172** | **164** |
+| **Total** | | | **172** | **165** |
 
 **Notas sobre contagem:**
 - **Fase 3 (Polish e Backlog)** não aparece como linha separada: os itens de severidade Baixa que o plano mestre consolida em Fase 3 aqui ficam dentro de seus EPICs originais nas Fases 1 e 2, para evitar duplicação.
@@ -32,9 +32,7 @@
 
 ## Próximo passo recomendado
 
-**Fase 0 concluída (41/41). Fase 1 concluída (66/66). Fase 2 em andamento (51/52).** EPIC-10 concluído (2026-04-12). EPIC-11 concluído (2026-04-12). EPIC-13 concluído (2026-04-12). EPIC-14 concluído (2026-04-12). EPIC-16 concluído (já implementado em EPIC-15/PR-5). Fase 2 quase completa: 1 item restante — **PERS-25** (AsyncSession + asyncpg), planejado em PR separado por alto risco de refatoração.
-
-**PERS-25** (AsyncSession + asyncpg) está pendente do EPIC-05 — planejado em PR separado; impacto alto mas isolável.
+**Fase 0 concluída (41/41). Fase 1 concluída (66/66). Fase 2 concluída (52/52).** Todos os EPICs concluídos. PERS-25 marcado completo após auditoria confirmando que a migração AsyncSession + asyncpg já estava implementada no código (database.py, campaign_executor_service.py, campaign_scheduler.py, main.py). Próximo: Fase 3 (Polish e Backlog) ou encerramento do projeto.
 
 **Atenção ao risco R01** (plano mestre, linha 866): ao rodar `alembic upgrade head` em banco já populado (staging/produção), usar `alembic stamp eb03c3cc8781` antes de `alembic upgrade head` para não re-executar o schema inicial. Em banco vazio, rodar `alembic upgrade head` diretamente (aplica os dois revisions em sequência).
 
@@ -108,13 +106,13 @@ Critérios de saída (plano mestre, linha 568):
 - [x] **GHL-23** — Logar detalhe internamente, retornar mensagem genérica ao cliente (Baixo)
 
 ### EPIC-05 — Concorrência, Pool e Session Management (itens críticos/altos)
-**Dependências:** EPIC-01 • **Itens:** 11 (dos 14 totais; 3 médios vão para Fase 1) • **Concluídos:** 10 • **Status:** [~] Em andamento — PERS-25 (AsyncSession) pendente, planejado em PR separado (2026-04-11)
+**Dependências:** EPIC-01 • **Itens:** 11 (dos 14 totais; 3 médios vão para Fase 1) • **Concluídos:** 11 • **Status:** ✅ Concluído (2026-04-12)
 
 - [x] **PERS-20** — Adicionar `pool_timeout=30` ao `create_engine()` em `database.py:8-15` (Baixo)
 - [x] **PERS-22** — Rollback no except do background task de `main.py:302-305`; setar `campaign.status='failed'`; commit (Baixo)
 - [x] **PERS-23 / CAMP-13** — `db_session.rollback()` no except antes do close em `campaign_scheduler.py:158` (Baixo)
-- [ ] **PERS-25 (RAIZ-11)** — AsyncSession completo + asyncpg em `main.py` e `campaign_executor_service.py` (Alto)
-  _DECISAO-05 resolvida: Opção A — migração completa AsyncSession. Planejado em PR separado._
+- [x] **PERS-25 (RAIZ-11)** — AsyncSession completo + asyncpg em `main.py` e `campaign_executor_service.py` (Alto)
+  _Implementado em Fase 1. Confirmado por auditoria em 2026-04-12: database.py usa create_async_engine + asyncpg, todos os serviços usam AsyncSession._
 - [x] **GHL-04** — `asyncio.Lock` no `TokenBucket` em `ghl_conversations_service.py:25-77`; `consume()` agora async (Baixo)
 - [x] **CAMP-06** — `with_for_update()` no check de pausa dentro do loop em `campaign_executor_service.py:99` (Baixo)
 - [x] **CAMP-07** — `.with_for_update()` na query do resume em `api/campaign_management.py:185` (Baixo)
@@ -393,3 +391,4 @@ Este não é um EPIC por si, mas um problema raiz transversal listado no plano m
 | 2026-04-12 | EPIC-13 concluído (14/15 — FRONT-20 dead, Sidebar deletado). 14 itens: Toast ARIA+FIFO, Card keyboard nav, Button/Badge/Input a11y, Sentry integration, shadow-ghl-lg, skip link, darkMode. Fase 2: 39/52. Total: 152/172. | Subagent-Driven Development |
 | 2026-04-12 | EPIC-14 Fase 2 concluído (8/8). FRONT-26/27/28/30/33/34, CAMP-26/27: erro limpo ao voltar no wizard, foco no heading, localStorage para column mapping, spinner no submit, optimistic updates na CampaignList, refetchInterval condicional, modal de confirmação com nome da campanha. TypeScript fix: `Query<CampaignDetailsResponse>`. 83/83 testes passando. Fase 2: 47/52. Total: 160/172. | Subagent-Driven Development |
 | 2026-04-12 | EPIC-16 marcado completo — todos os 4 itens (INFRA-25/26/27/28) já estavam implementados em EPIC-15/PR-5. Nenhum trabalho adicional necessário. Fase 2: 51/52 (só PERS-25 pendente). Total: 164/172. | Auditoria de código |
+| 2026-04-12 | PERS-25 marcado completo — AsyncSession + asyncpg já implementados em Fase 1 (database.py, campaign_executor_service.py, campaign_scheduler.py, main.py). **Fase 2: 52/52 COMPLETA.** Total: 165/172. | Auditoria de código |
