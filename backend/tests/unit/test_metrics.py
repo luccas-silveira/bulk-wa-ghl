@@ -55,3 +55,27 @@ class TestMessagesCounterIncrements:
         import src.services.campaign_executor_service as mod
         from src.metrics import messages_sent_total
         assert mod.messages_sent_total is messages_sent_total
+
+
+class TestNormalizePath:
+    """ANA-06: path normalization for Prometheus labels."""
+
+    def test_numeric_id_replaced(self):
+        from src.metrics import normalize_path
+        assert normalize_path('/api/v1/campaigns/123') == '/api/v1/campaigns/{id}'
+
+    def test_uuid_replaced(self):
+        from src.metrics import normalize_path
+        assert normalize_path('/api/v1/locations/550e8400-e29b-41d4-a716-446655440000') == '/api/v1/locations/{id}'
+
+    def test_no_id_passthrough(self):
+        from src.metrics import normalize_path
+        assert normalize_path('/api/v1/analytics/dashboard') == '/api/v1/analytics/dashboard'
+
+    def test_nested_path_with_id(self):
+        from src.metrics import normalize_path
+        assert normalize_path('/api/v1/campaigns/42/logs') == '/api/v1/campaigns/{id}/logs'
+
+    def test_root_passthrough(self):
+        from src.metrics import normalize_path
+        assert normalize_path('/health') == '/health'

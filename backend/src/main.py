@@ -28,7 +28,7 @@ from src.logging_config import (
     request_id_ctx_var,
     setup_logging,
 )
-from src.metrics import api_request_errors, api_request_latency, scheduler_jobs_gauge
+from src.metrics import api_request_errors, api_request_latency, normalize_path, scheduler_jobs_gauge
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from src.config import CORS_ORIGINS, ENABLE_METRICS, GHL_ENABLED, DEBUG
 from apscheduler.triggers.interval import IntervalTrigger
@@ -178,7 +178,7 @@ async def add_request_context(request: Request, call_next):
         response.headers["X-Request-ID"] = request_id
         return response
     except Exception:
-        api_request_errors.labels(method=request.method, path=request.url.path, status="500").inc()
+        api_request_errors.labels(method=request.method, path=normalize_path(request.url.path), status="500").inc()
         logger.exception("Unhandled exception during request")
         return JSONResponse(
             status_code=500,
@@ -187,12 +187,13 @@ async def add_request_context(request: Request, call_next):
         )
     finally:
         duration = time.perf_counter() - start_time
-        api_request_latency.labels(method=request.method, path=request.url.path).observe(duration)
+        _path = normalize_path(request.url.path)
+        api_request_latency.labels(method=request.method, path=_path).observe(duration)
 
         if 'response' in locals() and response.status_code >= 400:
             api_request_errors.labels(
                 method=request.method,
-                path=request.url.path,
+                path=_path,
                 status=str(response.status_code)
             ).inc()
 

@@ -4,7 +4,7 @@ Handles campaign listing, details, logs, statistics, and deletion operations
 """
 from typing import List, Dict, Optional, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, case
+from sqlalchemy import select, func, case, nullslast
 from src.models.campaign import Campaign
 from src.models.message import Message
 
@@ -123,7 +123,7 @@ class CampaignManagementService:
             timeline.append({'event': 'Campaign Completed', 'timestamp': campaign.updated_at.isoformat() if campaign.updated_at else None})
 
         recent_result = await self.db.execute(
-            select(Message).where(Message.campaign_id == campaign_id).order_by(Message.sent_at.desc()).limit(50)
+            select(Message).where(Message.campaign_id == campaign_id).order_by(nullslast(Message.sent_at.desc())).limit(50)
         )
         recent_messages = recent_result.scalars().all()
 
@@ -153,7 +153,7 @@ class CampaignManagementService:
                 escaped = filters['recipient'].replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
                 stmt = stmt.where(Message.recipient_phone.like(f"%{escaped}%", escape="\\"))
 
-        stmt = stmt.order_by(Message.sent_at.desc()).limit(limit).offset(offset)
+        stmt = stmt.order_by(nullslast(Message.sent_at.desc())).limit(limit).offset(offset)
         result = await self.db.execute(stmt)
         return [msg.to_dict() for msg in result.scalars().all()]
 

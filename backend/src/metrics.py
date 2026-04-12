@@ -1,6 +1,21 @@
 import re
 from prometheus_client import Counter, Gauge, Histogram
 
+# Path segments to replace with {id} for low-cardinality Prometheus labels
+_NUMERIC_SEGMENT_RE = re.compile(r'(?<=/)\d+(?=/|$)')
+_UUID_SEGMENT_RE = re.compile(
+    r'(?<=/)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?=/|$)',
+    re.IGNORECASE,
+)
+
+
+def normalize_path(path: str) -> str:
+    """Replace numeric and UUID path segments with {id} for Prometheus label cardinality."""
+    path = _UUID_SEGMENT_RE.sub('{id}', path)
+    path = _NUMERIC_SEGMENT_RE.sub('{id}', path)
+    return path
+
+
 api_request_latency = Histogram(
     "api_request_latency_seconds",
     "API request latency in seconds",
