@@ -14,7 +14,9 @@ from src.limiter import limiter
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["Analytics"])
 
-# In-process TTL cache: key → (timestamp, payload)
+# In-process TTL cache: key → (timestamp, payload). Unbounded by design
+# for single-tenant, low-cardinality use (ghl_user_id + days). If user count
+# grows significantly, replace with cachetools.TTLCache(maxsize=..., ttl=...).
 _dashboard_cache: dict[str, tuple[float, Any]] = {}
 _CACHE_TTL_SECONDS = 30.0
 

@@ -12,15 +12,6 @@ from src.models.campaign import Campaign
 from src.models.message import Message
 
 
-@pytest.fixture(autouse=True)
-def clear_dashboard_cache():
-    """Clear the module-level TTL cache before every test to prevent contamination."""
-    from src.api import analytics as analytics_module
-    analytics_module._dashboard_cache.clear()
-    yield
-    analytics_module._dashboard_cache.clear()
-
-
 @pytest.mark.asyncio
 class TestDashboardContract:
     """Test suite for dashboard API contract compliance"""
@@ -458,13 +449,18 @@ class TestDashboardTimeout:
 class TestDashboardTTLCache:
     """ANA-27: dashboard must serve cached response within TTL window."""
 
+    @pytest.fixture(autouse=True)
+    def clear_dashboard_cache(self):
+        """Clear the module-level TTL cache before every test to prevent contamination."""
+        from src.api import analytics as analytics_module
+        analytics_module._dashboard_cache.clear()
+        yield
+        analytics_module._dashboard_cache.clear()
+
     async def test_second_call_hits_cache_not_db(self, async_client: AsyncClient, db_session):
         """Two rapid calls should result in only one set of DB queries."""
         from unittest.mock import patch
         from src.api import analytics as analytics_module
-
-        # Clear any stale cache before test
-        analytics_module._dashboard_cache.clear()
 
         call_count = 0
         original_get_campaign_metrics = analytics_module.analytics_service.get_campaign_metrics
@@ -494,8 +490,6 @@ class TestDashboardTTLCache:
         from unittest.mock import patch
         from src.api import analytics as analytics_module
 
-        analytics_module._dashboard_cache.clear()
-
         call_count = 0
         original = analytics_module.analytics_service.get_campaign_metrics
 
@@ -524,8 +518,6 @@ class TestDashboardTTLCache:
         from unittest.mock import patch
         from src.api import analytics as analytics_module
 
-        analytics_module._dashboard_cache.clear()
-
         call_count = 0
         original = analytics_module.analytics_service.get_campaign_metrics
 
@@ -547,3 +539,37 @@ class TestDashboardTTLCache:
         assert call_count == 2, (
             f"Expected 2 DB calls (2 distinct cache keys), got {call_count}"
         )
+
+    async def test_expired_entry_triggers_requery(self, async_client: AsyncClient, db_session):
+        """A cache entry older than TTL_SECONDS must not be served."""
+        import time as time_module
+        from unittest.mock import patch
+        from src.api import analytics as analytics_module
+
+        # Prime cache with an already-expired entry
+        analytics_module._dashboard_cache["None:30"] = (
+            time_module.monotonic() - 31.0,  # 31s ago = already expired
+            {"stale": "data", "campaign_metrics": {}, "delivery_metrics": {},
+             "recent_campaigns": [], "top_performing_campaigns": [],
+             "timeline": {}, "time_range": "stale", "filter_info": "stale"}
+        )
+
+        call_count = 0
+        original = analytics_module.analytics_service.get_campaign_metrics
+
+        async def counting(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            return await original(*args, **kwargs)
+
+        with patch.object(
+            analytics_module.analytics_service,
+            "get_campaign_metrics",
+            side_effect=counting
+        ):
+            response = await async_client.get("/api/v1/analytics/dashboard")
+
+        assert response.status_code == 200
+        assert call_count == 1, "Expired cache entry must trigger DB re-query"
+        # Response must NOT be the stale payload
+        assert response.json().get("time_range") != "stale"
