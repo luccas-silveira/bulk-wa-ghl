@@ -7,9 +7,10 @@ from datetime import datetime
 from typing import Dict, List
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.date import DateTrigger
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-from src.database import SessionLocal
+from src.database import async_session_factory
 from src.metrics import campaign_queue_gauge, scheduler_jobs_gauge
 from src.models.campaign import Campaign
 from src.services.campaign_executor_service import CampaignExecutorService
@@ -33,11 +34,11 @@ class CampaignScheduler:
         self.scheduler = AsyncIOScheduler()
         self.campaign_data_store = {}  # Store campaign data for scheduled execution
 
-    def start(self):
-        """Start scheduler and load pending campaigns"""
+    async def start(self):
+        """Start scheduler and load pending campaigns."""
         logger.info("Starting Campaign Scheduler...")
         self.scheduler.start()
-        self._load_pending_campaigns()
+        await self._load_pending_campaigns()
         logger.info("Campaign Scheduler started successfully")
         self._refresh_metrics()
 
@@ -111,97 +112,65 @@ class CampaignScheduler:
             logger.warning(f"Failed to cancel campaign {campaign_id}: {str(e)}")
 
     async def _execute_scheduled_campaign(self, campaign_id: int):
-        """
-        Execute a scheduled campaign
-
-        Args:
-            campaign_id: Campaign ID to execute
-        """
         logger.info(f"Executing scheduled campaign {campaign_id}")
-
-        # Create independent DB session
-        db_session = SessionLocal()
-
-        try:
-            # Load campaign data from database
-            campaign = db_session.query(Campaign).filter(Campaign.id == campaign_id).first()
-            if not campaign:
-                logger.error(f"Campaign {campaign_id} not found in database")
-                return
-
-            csv_data = campaign.contacts_data
-            messages = campaign.messages_template
-
-            if not csv_data or not messages:
-                # Fallback to in-memory store for backwards compatibility
-                campaign_data = self.campaign_data_store.get(campaign_id)
-                if not campaign_data:
-                    logger.error(f"No data found for campaign {campaign_id} (neither DB nor memory)")
+        async with async_session_factory() as db_session:
+            try:
+                c_result = await db_session.execute(
+                    select(Campaign).where(Campaign.id == campaign_id)
+                )
+                campaign = c_result.scalar_one_or_none()
+                if not campaign:
+                    logger.error(f"Campaign {campaign_id} not found in database")
                     return
-                csv_data = campaign_data['csv_data']
-                messages = campaign_data['messages']
 
-            executor = CampaignExecutorService(db_session)
+                csv_data = campaign.contacts_data
+                messages = campaign.messages_template
 
-            result = await executor.execute_campaign(
-                campaign_id=campaign_id,
-                contacts=csv_data,
-                messages_template=messages
-            )
+                if not csv_data or not messages:
+                    campaign_data = self.campaign_data_store.get(campaign_id)
+                    if not campaign_data:
+                        logger.error(f"No data found for campaign {campaign_id} (neither DB nor memory)")
+                        return
+                    csv_data = campaign_data['csv_data']
+                    messages = campaign_data['messages']
 
-            logger.info(f"Scheduled campaign {campaign_id} completed: {result}")
+                executor = CampaignExecutorService(db_session)
+                result = await executor.execute_campaign(
+                    campaign_id=campaign_id,
+                    contacts=csv_data,
+                    messages_template=messages,
+                )
+                logger.info(f"Scheduled campaign {campaign_id} completed: {result}")
+                self.campaign_data_store.pop(campaign_id, None)
 
-            # Clean up in-memory store
-            self.campaign_data_store.pop(campaign_id, None)
+            except Exception as e:
+                logger.error(f"Error executing scheduled campaign {campaign_id}: {str(e)}", exc_info=True)
+            finally:
+                self._refresh_metrics()
 
-        except Exception as e:
-            logger.error(f"Error executing scheduled campaign {campaign_id}: {str(e)}", exc_info=True)
-
-        finally:
-            db_session.close()
-            self._refresh_metrics()
-
-    def _load_pending_campaigns(self):
-        """
-        Load campaigns scheduled for the future on startup.
-        Re-add them to scheduler using persisted data from the database.
-        """
-        db = SessionLocal()
-
-        try:
-            # Query campaigns with status='scheduled' and scheduled_time > now
-            pending_campaigns = db.query(Campaign).filter(
-                Campaign.status == 'scheduled',
-                Campaign.scheduled_time > datetime.now()
-            ).all()
-
-            logger.info(f"Loading {len(pending_campaigns)} pending scheduled campaigns...")
-
-            for campaign in pending_campaigns:
-                if campaign.contacts_data and campaign.messages_template:
-                    # Re-schedule using persisted data
+    async def _load_pending_campaigns(self):
+        """Load campaigns scheduled for the future on startup."""
+        async with async_session_factory() as db:
+            try:
+                result = await db.execute(
+                    select(Campaign).where(
+                        Campaign.status == 'scheduled',
+                        Campaign.scheduled_time > datetime.now(),
+                    )
+                )
+                pending_campaigns = result.scalars().all()
+                logger.info(f"Loading {len(pending_campaigns)} pending scheduled campaigns...")
+                for campaign in pending_campaigns:
+                    csv_data = campaign.contacts_data or []
+                    messages = campaign.messages_template or []
                     self.schedule_campaign(
                         campaign_id=campaign.id,
                         scheduled_time=campaign.scheduled_time,
-                        csv_data=campaign.contacts_data,
-                        messages=campaign.messages_template
+                        csv_data=csv_data,
+                        messages=messages,
                     )
-                    logger.info(f"Re-scheduled campaign {campaign.id} for {campaign.scheduled_time}")
-                else:
-                    logger.warning(
-                        f"Campaign {campaign.id} scheduled for {campaign.scheduled_time} "
-                        f"but has no persisted contact/message data. Marking as failed."
-                    )
-                    campaign.transition_to('failed')
-                    db.commit()
-
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Error loading pending campaigns: {str(e)}")
-
-        finally:
-            db.close()
-            self._refresh_metrics()
+            except Exception as e:
+                logger.error(f"Failed to load pending campaigns: {e}", exc_info=True)
 
     def get_scheduled_jobs(self) -> List[Dict]:
         """

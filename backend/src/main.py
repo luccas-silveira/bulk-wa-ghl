@@ -7,7 +7,7 @@ from fastapi import FastAPI, Depends, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from contextlib import asynccontextmanager
 import logging
 import hmac
@@ -18,7 +18,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 # Import database
-from src.database import get_db, engine
+from src.database import get_db, engine, async_session_factory
 
 # Import services
 from src.services.campaign_scheduler import CampaignScheduler
@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
             "DEBUG mode is enabled — SQL queries will be logged. "
             "Disable DEBUG in production."
         )
-    scheduler.start()
+    await scheduler.start()
     logger.info("Application started with Campaign Scheduler")
 
     # GHL-10: ensure cleanup job is registered (replace_existing=True is idempotent)
@@ -100,25 +100,16 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 async def _cleanup_old_webhooks():
     """Delete processed_webhooks older than 30 days (GHL-10)."""
-    db_session = SessionLocal()
-    try:
-        result = db_session.execute(
-            text(
-                "DELETE FROM processed_webhooks "
-                "WHERE processed_at < now() - interval '30 days'"
+    async with async_session_factory() as db_session:
+        try:
+            result = await db_session.execute(
+                text("DELETE FROM processed_webhooks WHERE processed_at < now() - interval '30 days'")
             )
-        )
-        db_session.commit()
-        logger.info(
-            f"Cleaned up {result.rowcount} old processed webhooks"
-        )
-    except Exception as e:
-        logger.error(
-            f"Webhook cleanup job failed: {e}", exc_info=True
-        )
-        db_session.rollback()
-    finally:
-        db_session.close()
+            await db_session.commit()
+            logger.info(f"Cleaned up {result.rowcount} old processed webhooks")
+        except Exception as e:
+            logger.error(f"Webhook cleanup job failed: {e}", exc_info=True)
+            await db_session.rollback()
 
 
 # GHL-10: pre-register cleanup job so it is visible to get_jobs() before lifespan runs
@@ -218,14 +209,14 @@ async def root():
     }
 
 @app.get("/health")
-async def health_check(db: Session = Depends(get_db)):
+async def health_check(db: AsyncSession = Depends(get_db)):
     """
     Health check endpoint with database connectivity verification
     Returns 200 OK if healthy, 503 if database is unreachable
     """
     try:
         # Test database connection
-        db.execute(text("SELECT 1"))
+        await db.execute(text("SELECT 1"))
         db_status = "connected"
     except Exception as e:
         logger.error(f"Database health check failed: {str(e)}")
