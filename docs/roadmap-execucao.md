@@ -2,7 +2,7 @@
 
 **Propósito:** rastreamento operacional do [plano mestre](plano-implementacao-mestre.md).
 **Fonte da verdade descritiva:** `plano-implementacao-mestre.md` contém descrição detalhada de cada item (arquivo, linha, ação específica, critérios de conclusão). Este documento só rastreia status e serve como painel executável.
-**Última atualização:** 2026-04-12 (EPIC-10 + EPIC-11 concluídos — 138/172 itens; Fase 2: 25/52)
+**Última atualização:** 2026-04-12 (EPIC-10 + EPIC-11 + EPIC-13 concluídos — 152/172 itens; Fase 2: 39/52)
 **Branch ativa:** `004-campaign-management`
 
 ---
@@ -32,7 +32,7 @@
 
 ## Próximo passo recomendado
 
-**Fase 0 concluída (41/41). Fase 1 concluída (66/66). Fase 2 em andamento (25/52).** EPIC-10 concluído (2026-04-12). EPIC-11 concluído (2026-04-12). Próximo: EPIC-13 (UI resto), EPIC-14 (Wizard resto), EPIC-16 (Nginx/SSL).
+**Fase 0 concluída (41/41). Fase 1 concluída (66/66). Fase 2 em andamento (39/52).** EPIC-10 concluído (2026-04-12). EPIC-11 concluído (2026-04-12). EPIC-13 concluído (2026-04-12). Próximo: EPIC-14 (Wizard resto), EPIC-16 (Nginx/SSL).
 
 **PERS-25** (AsyncSession + asyncpg) está pendente do EPIC-05 — planejado em PR separado; impacto alto mas isolável.
 
@@ -314,24 +314,23 @@ Critérios de saída (plano mestre, linha 612):
 - [x] **ANA-28** — Tratar estado vazio separado de `!metrics` em `Dashboard.tsx:128-148` (Baixo)
 
 ### EPIC-13 — Componentes UI (resto)
-**Dependências:** nenhuma • **Itens:** 15 • **Concluídos:** 0
+**Dependências:** nenhuma • **Itens:** 15 • **Concluídos:** 14 • **Status:** ✅ Concluído 2026-04-12
 
-- [ ] **FRONT-09** — `role="region"` + `aria-live="polite"` no container; `role="alert"` nos toasts em `ui/Toast.tsx:137-200` (Baixo)
-- [ ] **FRONT-10** — Limite máximo de 5 toasts visíveis (FIFO) em `ui/Toast.tsx:37-72` (Baixo)
-- [ ] **FRONT-12** — Handler `onKeyDown` para Enter/Space quando `clickable=true` em `ui/Card.tsx:23-72` (Baixo)
-- [ ] **FRONT-13** — Warning em dev se children vazio e sem `aria-label` em `ui/Button.tsx:13-102` (Baixo)
-- [ ] **FRONT-14** — `aria-label` no botão em vez de `sr-only` span em `ui/Badge.tsx:60-70` (Baixo)
-- [ ] **FRONT-15** — `aria-label` dinâmico + `aria-pressed` no password toggle em `ui/Input.tsx:107-117` (Baixo)
-- [ ] **FRONT-16** — Listener global `unhandledrejection` em `ErrorBoundary.tsx:1-62` (Médio)
-- [ ] **FRONT-17** — Integrar Sentry ou similar em `ErrorBoundary.tsx:22-24` (Médio)
-  _Bloqueia decisão: DECISAO-08_
-- [ ] **FRONT-18** — `React.isValidElement()` guard antes de `cloneElement` em `Button.tsx:75-85`, `Card.tsx:216-218` (Baixo)
-- [ ] **FRONT-19** — Guard de controlled/uncontrolled em `ui/Input.tsx:97-103` (Baixo)
-- [ ] **FRONT-20** — `onClick={onToggleCollapse}` no overlay mobile em `Sidebar.tsx:88-91` (Baixo)
-- [ ] **FRONT-36** — Envolver em `<nav aria-label="Main">` em `Header.tsx:22-54` (Baixo)
-- [ ] **FRONT-37** — Adicionar skip link em `Layout.tsx` (Baixo)
-- [ ] **FRONT-38** — Configurar `darkMode: 'class'` em `tailwind.config.js` (Baixo)
-- [ ] **FRONT-40** — Usar `shadow-ghl` em vez de `shadow-lg` em componentes UI (Baixo)
+- [x] **FRONT-09** — `role="region"` + `aria-label` no container; `role="alert"` nos toasts + close button `aria-label` em `ui/Toast.tsx` (Baixo)
+- [x] **FRONT-10** — Limite máximo de 5 toasts visíveis (FIFO) com timer cleanup em `ui/Toast.tsx` (Baixo)
+- [x] **FRONT-12** — Handler `onKeyDown` para Enter/Space quando `clickable=true` em `ui/Card.tsx` (Baixo)
+- [x] **FRONT-13** — Warning em dev se children vazio e sem `aria-label` em `ui/Button.tsx` (Baixo)
+- [x] **FRONT-14** — `aria-label="Remover"` no botão + `aria-hidden` no SVG em `ui/Badge.tsx` (Baixo)
+- [x] **FRONT-15** — `aria-label` dinâmico + `aria-pressed` no password toggle em `ui/Input.tsx` (Baixo)
+- [x] **FRONT-16** — Sentry `captureException` em `componentDidCatch` em `ErrorBoundary.tsx` (Médio)
+- [x] **FRONT-17** — Listener global `unhandledrejection` + Sentry em `ErrorBoundary.tsx`; `initSentry()` em `main.tsx` (Médio)
+- [x] **FRONT-18** — `React.isValidElement()` guard antes de `cloneElement` em `Button.tsx`, `Card.tsx`, `Input.tsx` (Baixo)
+- [x] **FRONT-19** — Guard de controlled/uncontrolled em `ui/Input.tsx` (Baixo)
+- [x] **FRONT-20** — ~~`onClick={onToggleCollapse}` no overlay mobile em `Sidebar.tsx`~~ **SKIPPED** — Sidebar.tsx deletado per DECISAO-02 (Baixo)
+- [x] **FRONT-36** — `aria-label="Navegação principal"` em `Header.tsx` (Baixo)
+- [x] **FRONT-37** — Skip link + `id="main-content"` em `Layout.tsx` (Baixo)
+- [x] **FRONT-38** — `darkMode: 'class'` em `tailwind.config.js` (Baixo)
+- [x] **FRONT-40** — `shadow-ghl-lg` em Toast, Card elevated, ErrorBoundary (Baixo)
 
 ### EPIC-14 — Wizard/Campanhas (resto)
 **Dependências:** RAIZ-09, EPIC-02, EPIC-09 • **Itens:** 8 • **Concluídos:** 0
@@ -391,3 +390,4 @@ Este não é um EPIC por si, mas um problema raiz transversal listado no plano m
 | 2026-04-10 | Documento criado a partir do `plano-implementacao-mestre.md`. WAHA EPIC-18 Opção B marcado como concluído (5 itens). ANA-01 marcado como parcial com nota sobre hacks. Status inicial de 12 itens verificado contra o código na branch `004-campaign-management`. | Revisão manual + verificação de código |
 | 2026-04-10 | DECISAO-02 a DECISAO-09 resolvidas. EPIC-01 (Alembic Baseline) concluído: `alembic/env.py` corrigido (PERS-03, INFRA-24), migration `eb03c3cc8781_initial_schema` gerada e aplicada ao banco dev. Total: 9 itens concluídos. | Implementação direta |
 | 2026-04-11 | Fase 1 concluída (66/66). 6 PRs mergeados em `004-campaign-management`: PR-1 (EPIC-06 State Machine), PR-2 (EPIC-07 Execução + EPIC-08 Webhooks), PR-3 (EPIC-09 E.164 + EPIC-13 UI críticos), PR-4 (EPIC-05 resto + EPIC-17 Observabilidade), PR-5 (EPIC-15 Infra/Deploy/Backup), PR-6 (EPIC-12 React Router + EPIC-14 Wizard + RAIZ-09). | PRs mergeados |
+| 2026-04-12 | EPIC-13 concluído (14/15 — FRONT-20 dead, Sidebar deletado). 14 itens: Toast ARIA+FIFO, Card keyboard nav, Button/Badge/Input a11y, Sentry integration, shadow-ghl-lg, skip link, darkMode. Fase 2: 39/52. Total: 152/172. | Subagent-Driven Development |
