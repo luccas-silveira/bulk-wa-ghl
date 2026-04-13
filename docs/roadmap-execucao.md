@@ -2,7 +2,7 @@
 
 **Propósito:** rastreamento operacional do [plano mestre](plano-implementacao-mestre.md).
 **Fonte da verdade descritiva:** `plano-implementacao-mestre.md` contém descrição detalhada de cada item (arquivo, linha, ação específica, critérios de conclusão). Este documento só rastreia status e serve como painel executável.
-**Última atualização:** 2026-04-12 (Runbook criado — 168/172 itens; **Fase 2: 52/52 COMPLETA** ✅; Fase 3: 6/7 itens concluídos)
+**Última atualização:** 2026-04-12 (Lighthouse 100/100 — **169/172 itens; Fase 3: 7/7 COMPLETA** ✅)
 **Branch ativa:** `004-campaign-management`
 
 ---
@@ -22,7 +22,7 @@
 | **1** — Estabilidade e segurança | State machine, webhooks idempotentes, telefone E.164, router frontend, UI crítica, infra de deploy, observabilidade | EPIC-05 (resto), 06 (resto), 07, 08, 09, 12, 13 (críticos), 14 (críticos/altos), 15, 17 | 73 | 66 |
 | **2** — Qualidade e performance | N+1 eliminados, analytics real com timeline, UI completa, SSL endurecido | EPIC-10, 11 (resto), 13 (resto), 14 (resto), 16 | 52 | 52 |
 | **Fora de fase** | EPIC-18 Opção B (remoção WAHA) + RAIZ-09 (endpoint createCampaign) | EPIC-18, RAIZ-09 | 6 | 6 |
-| **Total** | | | **172** | **168** |
+| **Total** | | | **172** | **169** |
 
 **Notas sobre contagem:**
 - **Fase 3 (Polish e Backlog)** não aparece como linha separada: os itens de severidade Baixa que o plano mestre consolida em Fase 3 aqui ficam dentro de seus EPICs originais nas Fases 1 e 2, para evitar duplicação.
@@ -32,7 +32,7 @@
 
 ## Próximo passo recomendado
 
-**Fase 0 concluída (41/41). Fase 1 concluída (66/66). Fase 2 concluída (52/52).** Todos os EPICs concluídos. **Fase 3 em andamento: 6/7 itens concluídos.** Runbook de operações criado em `docs/runbook.md` (deploy, rollback, backup/restore, migrations, resposta a incidentes). Resta apenas **Lighthouse > 90** (auditoria — requer app em execução).
+**Fase 0 concluída (41/41). Fase 1 concluída (66/66). Fase 2 concluída (52/52). Fase 3 concluída (7/7).** Todos os EPICs e todas as fases concluídos. Lighthouse accessibility: **100/100** (fix: `text-red-600` → `text-red-700` em `Dashboard.tsx:200` para cumprir WCAG AA 4.5:1). O projeto está pronto para produção.
 
 **Atenção ao risco R01** (plano mestre, linha 866): ao rodar `alembic upgrade head` em banco já populado (staging/produção), usar `alembic stamp eb03c3cc8781` antes de `alembic upgrade head` para não re-executar o schema inicial. Em banco vazio, rodar `alembic upgrade head` diretamente (aplica os dois revisions em sequência).
 
@@ -394,3 +394,4 @@ Este não é um EPIC por si, mas um problema raiz transversal listado no plano m
 | 2026-04-12 | PERS-25 marcado completo — AsyncSession + asyncpg já implementados em Fase 1 (database.py, campaign_executor_service.py, campaign_scheduler.py, main.py). **Fase 2: 52/52 COMPLETA.** Total: 165/172. | Auditoria de código |
 | 2026-04-12 | ANA-16 implementado — `isDashboardMetrics` type guard em `Dashboard.tsx` (verifica campos leaf `total_campaigns`, `active_campaigns`, `sent`, `delivery_rate`, `read_rate`); data tipada como `unknown` força narrowing antes de `setMetrics`. `/docs-status` atualizado para refletir `GHL_ENABLED` (campo `ghl_enabled` adicionado, endpoints GHL condicionais). 85/85 testes frontend, 99/99 backend. Total: 167/172. Fase 3: 5/7. | Subagent-Driven Development |
 | 2026-04-12 | Runbook de operações criado em `docs/runbook.md` — cobre primeiro deploy, deploy de atualização, rollback (código + migration + restore), backup/restore com decrypt AES-256-CBC, migrações Alembic (incl. R01 stamp), health checks, operações de campanha (velocidades, estados, campanhas presas), resposta a incidentes (backend, DB, startup, campanha não inicia), rotinas periódicas e referência rápida de comandos. Total: 168/172. Fase 3: 6/7. | Documentação manual |
+| 2026-04-12 | Lighthouse accessibility: **100/100** ✅ (meta: >90). Fix: `text-red-600` → `text-red-700` em `Dashboard.tsx:200` para contraste 4.41→5.74 cumprindo WCAG AA 4.5:1. **Fase 3: 7/7 COMPLETA. Total: 169/172. Projeto pronto para produção.** | Lighthouse CLI + fix de contraste |

@@ -197,7 +197,7 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
       <div className="p-6">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <h3 className="text-red-800 font-semibold">Error Loading Dashboard</h3>
-          <p className="text-red-600 mt-1">{error}</p>
+          <p className="text-red-700 mt-1">{error}</p>
           <button
             onClick={() => fetchDashboardData({ ghl_user_id: userFilter || undefined, days: timeRange })}
             className="mt-3 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
