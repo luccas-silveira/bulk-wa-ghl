@@ -1,6 +1,6 @@
 // ghl-inject/inject.js
-// Colar em: GHL > Settings > Integrations > Custom JS
-// Substitua WPP_MANAGER_URL pela URL real do seu deploy
+// Colar em: GHL > Settings > Custom Code (como HTML com <script>)
+// Ou hospedar e carregar via loader de uma linha
 (function () {
   'use strict';
 
@@ -21,10 +21,7 @@
 
       const overlay = document.createElement('div');
       overlay.id = OVERLAY_ID;
-      overlay.style.cssText = [
-        'position:fixed', 'inset:0', 'z-index:999999',
-        'background:#fff', 'display:flex', 'flex-direction:column',
-      ].join(';');
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:999999;background:#fff;display:flex;flex-direction:column';
 
       const iframe = document.createElement('iframe');
       iframe.src = `${WPP_MANAGER_URL}/embedded?embedded=true&ghl_location_id=${encodeURIComponent(locationId)}&ghl_user_id=${encodeURIComponent(userId)}`;
@@ -33,48 +30,44 @@
 
       overlay.appendChild(iframe);
       document.body.appendChild(overlay);
-    }).catch(function (err) {
-      console.error('[WPP Manager] Failed to get GHL context:', err);
-    });
+    }).catch(err => console.error('[WPP Manager]', err));
   }
 
   function closeManager() {
-    const overlay = document.getElementById(OVERLAY_ID);
-    if (overlay) overlay.remove();
+    const el = document.getElementById(OVERLAY_ID);
+    if (el) el.remove();
   }
 
-  // Fechar quando o app enviar postMessage 'wpp:close'
-  // Nota: para testes locais, defina WPP_MANAGER_URL como 'http://localhost:3001' (ou URL do ngrok)
   window.addEventListener('message', function (e) {
     if (e.origin !== WPP_MANAGER_URL) return;
     if (e.data === 'wpp:close') closeManager();
   });
 
-  // ---------- Botão FAB ----------
+  // ---------- Botão no nav, ao lado de "Empresas" ----------
   function injectButton() {
     if (document.getElementById(BUTTON_ID)) return;
 
-    const btn = document.createElement('button');
+    const empresas = Array.from(document.querySelectorAll('a, button'))
+      .find(el => el.textContent.trim() === 'Empresas');
+
+    if (!empresas) {
+      setTimeout(injectButton, 400);
+      return;
+    }
+
+    const btn = document.createElement('a');
     btn.id = BUTTON_ID;
     btn.textContent = '📤 Disparos';
-    btn.title = 'Abrir WPP Manager';
-    btn.style.cssText = [
-      'position:fixed', 'bottom:24px', 'right:24px', 'z-index:99999',
-      'background:#1a56db', 'color:#fff', 'border:none', 'border-radius:8px',
-      'padding:10px 18px', 'font-size:14px', 'font-weight:600',
-      'cursor:pointer', 'box-shadow:0 4px 12px rgba(0,0,0,0.25)',
-      'transition:background 0.2s',
-    ].join(';');
-    btn.addEventListener('mouseenter', () => { btn.style.background = '#1e40af'; });
-    btn.addEventListener('mouseleave', () => { btn.style.background = '#1a56db'; });
+    btn.className = empresas.className;
+    btn.style.cursor = 'pointer';
     btn.addEventListener('click', openManager);
 
-    document.body.appendChild(btn);
+    empresas.parentElement.insertBefore(btn, empresas.nextSibling);
   }
 
   function removeButton() {
-    const btn = document.getElementById(BUTTON_ID);
-    if (btn) btn.remove();
+    const el = document.getElementById(BUTTON_ID);
+    if (el) el.remove();
   }
 
   // ---------- Detecção de rota ----------
@@ -93,7 +86,6 @@
     }
   }
 
-  // Aguarda AppUtils estar disponível
   function init() {
     if (typeof AppUtils === 'undefined') {
       setTimeout(init, 300);
@@ -101,7 +93,7 @@
     }
     window.addEventListener('routeLoaded', handleRoute);
     window.addEventListener('routeChangeEvent', handleRoute);
-    handleRoute(); // checar rota atual na carga inicial
+    handleRoute();
   }
 
   init();
