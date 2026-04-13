@@ -46,6 +46,7 @@ const EmbeddedRoute: React.FC<{ onCreateCampaign: () => void }> = ({ onCreateCam
   );
 };
 
+// TODO: pass ghlLocationId to CampaignWizard.defaultLocationId once that prop exists
 const EmbeddedNewRoute: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
   return (
     <EmbeddedLayout>

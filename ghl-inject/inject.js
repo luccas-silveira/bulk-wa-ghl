@@ -44,6 +44,7 @@
   }
 
   // Fechar quando o app enviar postMessage 'wpp:close'
+  // Nota: para testes locais, defina WPP_MANAGER_URL como 'http://localhost:3001' (ou URL do ngrok)
   window.addEventListener('message', function (e) {
     if (e.origin !== WPP_MANAGER_URL) return;
     if (e.data === 'wpp:close') closeManager();
