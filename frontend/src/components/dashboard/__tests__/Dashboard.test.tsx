@@ -141,4 +141,29 @@ describe('Dashboard', () => {
     await waitFor(() => screen.getByTestId('fetched-at'));
     expect(screen.queryByText(/Error Loading/)).not.toBeInTheDocument();
   });
+
+  it('shows error when API response is missing required fields', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ unexpected: 'shape' }),
+    });
+    render(<Dashboard />);
+    await waitFor(() =>
+      expect(screen.getByText(/Error Loading Dashboard/i)).toBeInTheDocument()
+    );
+  });
+
+  it('renders correctly when previous period response has wrong shape', async () => {
+    let callCount = 0;
+    mockFetch.mockImplementation(() => {
+      callCount++;
+      if (callCount === 2) {
+        return Promise.resolve({ ok: true, json: async () => ({ bad: 'data' }) });
+      }
+      return Promise.resolve({ ok: true, json: async () => mockDashboardData });
+    });
+    render(<Dashboard />);
+    await waitFor(() => screen.getByTestId('fetched-at'));
+    expect(screen.queryByText(/Error Loading/)).not.toBeInTheDocument();
+  });
 });

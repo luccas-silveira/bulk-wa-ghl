@@ -20,6 +20,17 @@ interface DashboardProps {
 const computeChange = (current: number, previous: number): number =>
   previous > 0 ? ((current - previous) / previous) * 100 : 0;
 
+function isDashboardMetrics(data: unknown): data is DashboardMetrics {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as Record<string, unknown>).campaign_metrics === 'object' &&
+    (data as Record<string, unknown>).campaign_metrics !== null &&
+    typeof (data as Record<string, unknown>).delivery_metrics === 'object' &&
+    (data as Record<string, unknown>).delivery_metrics !== null
+  );
+}
+
 const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampaign, onNavigateToManagement }) => {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,23 +86,29 @@ const Dashboard: React.FC<DashboardProps> = ({ defaultUserId, onNavigateToCampai
         throw new Error(`Failed to fetch dashboard data: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data: unknown = await response.json();
+
+      if (!isDashboardMetrics(data)) {
+        throw new Error('Resposta da API com formato inválido');
+      }
 
       if (prevResponse.ok) {
-        const prevData = await prevResponse.json();
+        const prevData: unknown = await prevResponse.json();
         // previous period = 2×period total − current period
-        const prevActiveCampaigns =
-          (prevData.campaign_metrics.active_campaigns || 0) -
-          (data.campaign_metrics.active_campaigns || 0);
-        const prevSent =
-          (prevData.delivery_metrics.sent || 0) - (data.delivery_metrics.sent || 0);
-        const prevDeliveryRate = prevData.delivery_metrics.delivery_rate || 0;
+        if (isDashboardMetrics(prevData)) {
+          const prevActiveCampaigns =
+            (prevData.campaign_metrics.active_campaigns || 0) -
+            (data.campaign_metrics.active_campaigns || 0);
+          const prevSent =
+            (prevData.delivery_metrics.sent || 0) - (data.delivery_metrics.sent || 0);
+          const prevDeliveryRate = prevData.delivery_metrics.delivery_rate || 0;
 
-        setChanges({
-          activeCampaigns: computeChange(data.campaign_metrics.active_campaigns || 0, prevActiveCampaigns),
-          sent: computeChange(data.delivery_metrics.sent || 0, prevSent),
-          deliveryRate: computeChange(data.delivery_metrics.delivery_rate || 0, prevDeliveryRate),
-        });
+          setChanges({
+            activeCampaigns: computeChange(data.campaign_metrics.active_campaigns || 0, prevActiveCampaigns),
+            sent: computeChange(data.delivery_metrics.sent || 0, prevSent),
+            deliveryRate: computeChange(data.delivery_metrics.delivery_rate || 0, prevDeliveryRate),
+          });
+        }
       }
 
       // Set the metrics directly from the API response
