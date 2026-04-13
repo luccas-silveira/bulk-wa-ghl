@@ -9,7 +9,7 @@ from httpx import AsyncClient
 @pytest.mark.asyncio
 class TestDocsStatusContract:
 
-    async def test_returns_200_with_required_keys(self, async_client: AsyncClient, db_session):
+    async def test_returns_200_with_required_keys(self, async_client: AsyncClient):
         response = await async_client.get("/docs-status")
         assert response.status_code == 200
         data = response.json()
@@ -19,7 +19,7 @@ class TestDocsStatusContract:
         assert isinstance(data["endpoints"], list)
         assert isinstance(data["ghl_enabled"], bool)
 
-    async def test_ghl_endpoints_match_ghl_enabled(self, async_client: AsyncClient, db_session):
+    async def test_ghl_endpoints_match_ghl_enabled(self, async_client: AsyncClient):
         from src.config import GHL_ENABLED
         response = await async_client.get("/docs-status")
         assert response.status_code == 200
@@ -27,10 +27,13 @@ class TestDocsStatusContract:
         ghl_endpoints = [e for e in data["endpoints"] if "/ghl/" in e]
         if GHL_ENABLED:
             assert len(ghl_endpoints) > 0, "GHL_ENABLED=True but no GHL endpoints listed"
+            endpoints_str = " ".join(data["endpoints"])
+            assert "/ghl/oauth/callback" in endpoints_str
+            assert "/webhooks/ghl/messages" in endpoints_str
         else:
             assert len(ghl_endpoints) == 0, f"GHL_ENABLED=False but found GHL endpoints: {ghl_endpoints}"
 
-    async def test_always_includes_core_endpoints(self, async_client: AsyncClient, db_session):
+    async def test_always_includes_core_endpoints(self, async_client: AsyncClient):
         response = await async_client.get("/docs-status")
         data = response.json()
         endpoints_str = " ".join(data["endpoints"])

@@ -285,7 +285,8 @@ async def docs_status():
         "GET /ghl/locations - Listar locations GHL",
         "GET /ghl/users - Listar usuários GHL",
         "POST /ghl/oauth/callback - Callback OAuth GHL",
-        "POST /ghl/webhooks - Receber webhooks GHL",
+        "POST /ghl/messages/send - Enviar mensagem via GHL",
+        "POST /webhooks/ghl/messages - Receber webhooks GHL",
     ]
     return {
         "provider": "GoHighLevel (GHL)",
