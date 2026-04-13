@@ -45,6 +45,7 @@ services:
 
       # Application
       DEBUG: ${DEBUG:-False}
+      CORS_ORIGINS: ${CORS_ORIGINS}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
