@@ -1,6 +1,4 @@
-// ghl-inject/inject.js
-// Colar em: GHL > Settings > Custom Code (como HTML com <script>)
-// Ou hospedar e carregar via loader de uma linha
+<script>
 (function () {
   'use strict';
 
@@ -8,7 +6,6 @@
   const BUTTON_ID = 'wpp-manager-fab';
   const OVERLAY_ID = 'wpp-manager-overlay';
 
-  // ---------- Overlay com iframe ----------
   function openManager() {
     if (document.getElementById(OVERLAY_ID)) return;
 
@@ -43,17 +40,15 @@
     if (e.data === 'wpp:close') closeManager();
   });
 
-  // ---------- Botão no nav, ao lado de "Empresas" ----------
-  function injectButton() {
-    if (document.getElementById(BUTTON_ID)) return;
-
-    const empresas = Array.from(document.querySelectorAll('a, button'))
+  function findEmpresasTab() {
+    return Array.from(document.querySelectorAll('a, button'))
       .find(el => el.textContent.trim() === 'Empresas');
+  }
 
-    if (!empresas) {
-      setTimeout(injectButton, 400);
-      return;
-    }
+  function tryInject() {
+    if (document.getElementById(BUTTON_ID)) return;
+    const empresas = findEmpresasTab();
+    if (!empresas) return;
 
     const btn = document.createElement('a');
     btn.id = BUTTON_ID;
@@ -61,40 +56,24 @@
     btn.className = empresas.className;
     btn.style.cursor = 'pointer';
     btn.addEventListener('click', openManager);
-
     empresas.parentElement.insertBefore(btn, empresas.nextSibling);
   }
 
-  function removeButton() {
-    const el = document.getElementById(BUTTON_ID);
-    if (el) el.remove();
-  }
-
-  // ---------- Detecção de rota ----------
-  function isContactsRoute(path) {
-    return /\/contacts(\/|$)/i.test(path);
-  }
-
-  function handleRoute() {
-    const route = AppUtils.RouteHelper.getCurrentRoute();
-    const path = route?.path || route?.fullPath || '';
-    if (isContactsRoute(path)) {
-      injectButton();
-    } else {
-      removeButton();
+  function tryRemove() {
+    if (!findEmpresasTab()) {
+      const btn = document.getElementById(BUTTON_ID);
+      if (btn) btn.remove();
       closeManager();
     }
   }
 
-  function init() {
-    if (typeof AppUtils === 'undefined') {
-      setTimeout(init, 300);
-      return;
-    }
-    window.addEventListener('routeLoaded', handleRoute);
-    window.addEventListener('routeChangeEvent', handleRoute);
-    handleRoute();
-  }
+  const observer = new MutationObserver(function () {
+    tryInject();
+    tryRemove();
+  });
 
-  init();
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  tryInject();
 })();
+</script>
