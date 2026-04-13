@@ -1,11 +1,13 @@
-<script>
+// ghl-inject/inject.js
 (function () {
   'use strict';
 
   const WPP_MANAGER_URL = 'https://appzoi.com/disparador';
+  const WPP_MANAGER_ORIGIN = 'https://appzoi.com'; // e.origin nunca inclui o path
   const BUTTON_ID = 'wpp-manager-fab';
   const OVERLAY_ID = 'wpp-manager-overlay';
 
+  // ---------- Overlay com iframe ----------
   function openManager() {
     if (document.getElementById(OVERLAY_ID)) return;
 
@@ -36,10 +38,11 @@
   }
 
   window.addEventListener('message', function (e) {
-    if (e.origin !== WPP_MANAGER_URL) return;
+    if (e.origin !== WPP_MANAGER_ORIGIN) return;
     if (e.data === 'wpp:close') closeManager();
   });
 
+  // ---------- Injeção via MutationObserver ----------
   function findEmpresasTab() {
     return Array.from(document.querySelectorAll('a, button'))
       .find(el => el.textContent.trim() === 'Empresas');
@@ -60,6 +63,7 @@
   }
 
   function tryRemove() {
+    // Remove botão e overlay se "Empresas" sumiu do DOM (saiu de Contacts)
     if (!findEmpresasTab()) {
       const btn = document.getElementById(BUTTON_ID);
       if (btn) btn.remove();
@@ -74,6 +78,6 @@
 
   observer.observe(document.body, { childList: true, subtree: true });
 
+  // Tenta imediatamente caso o nav já esteja no DOM
   tryInject();
 })();
-</script>

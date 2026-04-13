@@ -3,6 +3,7 @@
   'use strict';
 
   const WPP_MANAGER_URL = 'https://appzoi.com/disparador';
+  const WPP_MANAGER_ORIGIN = 'https://appzoi.com'; // e.origin nunca inclui o path
   const BUTTON_ID = 'wpp-manager-fab';
   const OVERLAY_ID = 'wpp-manager-overlay';
 
@@ -37,7 +38,7 @@
   }
 
   window.addEventListener('message', function (e) {
-    if (e.origin !== WPP_MANAGER_URL) return;
+    if (e.origin !== WPP_MANAGER_ORIGIN) return;
     if (e.data === 'wpp:close') closeManager();
   });
 

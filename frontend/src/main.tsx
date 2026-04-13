@@ -46,11 +46,12 @@ const EmbeddedRoute: React.FC<{ onCreateCampaign: () => void }> = ({ onCreateCam
   );
 };
 
-// TODO: pass ghlLocationId to CampaignWizard.defaultLocationId once that prop exists
 const EmbeddedNewRoute: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
+  const { ghlLocationId } = useEmbeddedMode();
   return (
     <EmbeddedLayout>
       <CampaignWizard
+        defaultLocationId={ghlLocationId ?? undefined}
         onSubmit={async (data) => {
           const response = await fetch(`${API_BASE_URL}/api/v1/campaigns`, {
             method: 'POST',

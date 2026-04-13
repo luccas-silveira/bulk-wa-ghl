@@ -18,14 +18,15 @@ const COLUMN_MAPPING_KEY = 'campaign-wizard-column-mapping';
 interface CampaignWizardProps {
   onSubmit: (campaign: CampaignCreateRequest) => Promise<void>;
   onCancel: () => void;
+  defaultLocationId?: string;
 }
 
-const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel }) => {
+const CampaignWizard: React.FC<CampaignWizardProps> = ({ onSubmit, onCancel, defaultLocationId }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CampaignFormData>({
     name: '',
-    ghl_location_id: '',
+    ghl_location_id: defaultLocationId ?? '',
     ghl_user_ids: [],  // Multiple users for round-robin
     sending_speed: 'medium',
     schedule_type: 'immediate',
