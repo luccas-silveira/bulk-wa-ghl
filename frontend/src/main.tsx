@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Dashboard from './components/dashboard/Dashboard'
 import CampaignWizard from './components/campaign/CampaignWizard'
@@ -73,6 +73,7 @@ const EmbeddedNewRoute: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
 const AppRoutes: React.FC = () => {
   const navigate = useNavigate()
   const { addToast } = useToast()
+  const location = useLocation()
 
   const handleCreateCampaign = async (campaignData: CampaignCreateRequest) => {
     const response = await fetch(`${API_BASE_URL}/api/v1/campaigns`, {
@@ -163,7 +164,7 @@ const AppRoutes: React.FC = () => {
         element={
           <ProtectedRoute>
             <EmbeddedRoute
-              onCreateCampaign={() => navigate('/embedded/new')}
+              onCreateCampaign={() => navigate(`/embedded/new${location.search}`)}
             />
           </ProtectedRoute>
         }
@@ -172,7 +173,7 @@ const AppRoutes: React.FC = () => {
         path="/embedded/new"
         element={
           <ProtectedRoute>
-            <EmbeddedNewRoute onCancel={() => navigate('/embedded')} />
+            <EmbeddedNewRoute onCancel={() => navigate(`/embedded${location.search}`)} />
           </ProtectedRoute>
         }
       />
