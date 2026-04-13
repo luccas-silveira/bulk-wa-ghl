@@ -33,6 +33,8 @@
 
       overlay.appendChild(iframe);
       document.body.appendChild(overlay);
+    }).catch(function (err) {
+      console.error('[WPP Manager] Failed to get GHL context:', err);
     });
   }
 
@@ -43,6 +45,7 @@
 
   // Fechar quando o app enviar postMessage 'wpp:close'
   window.addEventListener('message', function (e) {
+    if (e.origin !== WPP_MANAGER_URL) return;
     if (e.data === 'wpp:close') closeManager();
   });
 
@@ -75,7 +78,7 @@
 
   // ---------- Detecção de rota ----------
   function isContactsRoute(path) {
-    return /\/contacts/i.test(path);
+    return /\/contacts(\/|$)/i.test(path);
   }
 
   function handleRoute() {
