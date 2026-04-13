@@ -46,7 +46,8 @@ async def get_delivery_metrics(
     ghl_user_id: Optional[str] = None,
     days: int = 30
 ) -> Dict:
-    date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
+    # Message.created_at is TIMESTAMP WITHOUT TIME ZONE — use naive UTC datetime
+    date_threshold = datetime.utcnow() - timedelta(days=days)
 
     stmt = select(Message).where(Message.created_at >= date_threshold)
     if ghl_user_id:
@@ -197,7 +198,8 @@ async def get_delivery_timeline(
 ) -> Dict:
     from collections import defaultdict
 
-    date_threshold = datetime.now(timezone.utc) - timedelta(days=days)
+    # Message.sent_at is TIMESTAMP WITHOUT TIME ZONE — use naive UTC datetime
+    date_threshold = datetime.utcnow() - timedelta(days=days)
 
     stmt = select(Message).where(
         Message.sent_at >= date_threshold,

@@ -14,7 +14,7 @@ Bulk WhatsApp messaging platform integrated with GoHighLevel (GHL). Manages camp
 - Services: `services/` — business logic (CampaignExecutor, CampaignScheduler, CampaignManagement, GHLConversations, GHLOAuth, TokenEncryption, Analytics, GHLContacts, GHLUsers, GHLWebhookHandler)
 - Models: `models/` — SQLAlchemy 2.0 models (Campaign, Message, GHLLocation, GHLOAuthToken, GHLConversation, GHLUser, ProcessedWebhook)
 - Database: PostgreSQL 16 (Alembic configured in `backend/alembic/`; initial revision `eb03c3cc8781_initial_schema` committed — see "Database migrations" below)
-- **Note:** The DB layer currently uses synchronous SQLAlchemy sessions. A planned migration to full `AsyncSession` + `asyncpg` (PERS-25) is tracked in the roadmap but not yet implemented — do not assume async session support exists.
+- **DB layer uses async SQLAlchemy** (`AsyncSession + asyncpg`, migration completed Apr 2026, PERS-25). All services are async-first; tests use `pytest-asyncio` with in-memory `aiosqlite` (no real DB needed for unit tests).
 
 **Messaging provider:** GoHighLevel (GHL) only. WAHA (WhatsApp HTTP API) is not supported — endpoints, types, and references have been removed. If WAHA support is ever needed again, it will require introducing a provider abstraction layer (`MessageProvider` interface) and refactoring `CampaignExecutorService` to consume it.
 
@@ -24,6 +24,7 @@ Bulk WhatsApp messaging platform integrated with GoHighLevel (GHL). Manages camp
 - Styling: Tailwind CSS 3.4
 - Charts: Chart.js 4.5 + react-chartjs-2
 - Animations: framer-motion
+- Error monitoring: `@sentry/react` (DECISION-08)
 - CSV parsing: papaparse (contact list upload in campaign wizard)
 - Phone validation: libphonenumber-js (mirrors backend `phonenumbers` lib; used in campaign wizard)
 - Key areas: `components/dashboard/`, `components/campaign/`, `components/ui/`, `pages/`, `hooks/`, `services/`
@@ -93,6 +94,10 @@ Background tasks via `asyncio.create_task()`. Campaigns can be immediate or sche
 
 All campaign operations live under `/api/v1/campaigns` in `backend/src/api/campaign_management.py`: `POST` (create), list, details, logs, stats, pause/resume, and delete. `main.py` contains no inline campaign handlers.
 
+### Docs-status endpoint
+
+`GET /docs-status` returns the list of all registered API routes and reflects `GHL_ENABLED` state (routes skipped when GHL is disabled are absent). Useful for integration checks and contract tests (`backend/tests/contract/test_docs_status_contract.py`).
+
 ### Rate limiting
 
 `backend/src/limiter.py` holds the `slowapi.Limiter` singleton (imported as `from src.limiter import limiter`). Decorate new endpoints with `@limiter.limit("60/minute")` and add `request: Request` as the first parameter. The singleton lives in its own module to avoid circular imports with `main.py`.
@@ -123,7 +128,7 @@ Structured JSON logging with `X-Request-ID` propagation. Prometheus metrics at `
 
 ## Supporting docs
 
-The `docs/` folder contains domain context and historical decisions: `plano-implementacao-mestre.md` (master implementation plan), `roadmap-execucao.md` (live execution tracker with per-item status for all 18 EPICs — consult this first to see what's next and what's already done), `code-review-campaign-module.md`, and audit documents per subsystem (`auditoria-integracao-ghl.md`, `auditoria-persistencia-dados.md`, `auditoria-analytics-metricas.md`, `auditoria-frontend-ui.md`, `auditoria-infraestrutura-deploy.md`, and `auditoria-integracao-waha.md` — the last one is historical; WAHA is no longer supported). Read these for background on *why* something was built a certain way.
+The `docs/` folder contains domain context and historical decisions: `plano-implementacao-mestre.md` (master implementation plan), `roadmap-execucao.md` (live execution tracker with per-item status for all 18 EPICs — consult this first to see what's next and what's already done), `code-review-campaign-module.md`, `runbook.md` (operations guide: deploy, rollback, backup/restore, health checks, incident response), and audit documents per subsystem (`auditoria-integracao-ghl.md`, `auditoria-persistencia-dados.md`, `auditoria-analytics-metricas.md`, `auditoria-frontend-ui.md`, `auditoria-infraestrutura-deploy.md`, and `auditoria-integracao-waha.md` — the last one is historical; WAHA is no longer supported). Read these for background on *why* something was built a certain way.
 
 ## Environment variables
 
