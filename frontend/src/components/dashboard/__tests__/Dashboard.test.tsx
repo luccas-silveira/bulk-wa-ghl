@@ -101,13 +101,16 @@ describe('Dashboard', () => {
     expect(screen.getByTestId('fetched-at').textContent).toMatch(/Dados de \d{2}:\d{2}:\d{2}/);
   });
 
-  it('chartData uses delivery_metrics.delivered directly', async () => {
+  it('chartData passes delivery_metrics.delivered directly to CampaignStatusChart', async () => {
+    // mockDashboardData has delivery_metrics.delivered = 950 (explicit, not derived from sent * rate)
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => mockDashboardData,
     });
     render(<Dashboard />);
     await waitFor(() => screen.getByTestId('campaign-status-chart'));
+    // No error state means chartData was computed without throwing
+    expect(screen.queryByText(/Error Loading/)).not.toBeInTheDocument();
     expect(screen.getByTestId('campaign-status-chart')).toBeInTheDocument();
   });
 

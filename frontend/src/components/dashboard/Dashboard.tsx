@@ -21,13 +21,18 @@ const computeChange = (current: number, previous: number): number =>
   previous > 0 ? ((current - previous) / previous) * 100 : 0;
 
 function isDashboardMetrics(data: unknown): data is DashboardMetrics {
+  if (typeof data !== 'object' || data === null) return false;
+  const d = data as Record<string, unknown>;
+  const cm = d.campaign_metrics;
+  const dm = d.delivery_metrics;
   return (
-    typeof data === 'object' &&
-    data !== null &&
-    typeof (data as Record<string, unknown>).campaign_metrics === 'object' &&
-    (data as Record<string, unknown>).campaign_metrics !== null &&
-    typeof (data as Record<string, unknown>).delivery_metrics === 'object' &&
-    (data as Record<string, unknown>).delivery_metrics !== null
+    typeof cm === 'object' && cm !== null &&
+    typeof (cm as Record<string, unknown>).total_campaigns === 'number' &&
+    typeof (cm as Record<string, unknown>).active_campaigns === 'number' &&
+    typeof dm === 'object' && dm !== null &&
+    typeof (dm as Record<string, unknown>).sent === 'number' &&
+    typeof (dm as Record<string, unknown>).delivery_rate === 'number' &&
+    typeof (dm as Record<string, unknown>).read_rate === 'number'
   );
 }
 
