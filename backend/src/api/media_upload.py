@@ -6,7 +6,8 @@ import os
 import uuid
 import logging
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+from src.limiter import limiter
 from fastapi.responses import JSONResponse
 import aiofiles
 
@@ -38,7 +39,8 @@ def _unique_name(original: str) -> str:
 
 
 @router.post("/upload", status_code=201)
-async def upload_media(file: UploadFile = File(...)):
+@limiter.limit("20/minute")
+async def upload_media(request: Request, file: UploadFile = File(...)):
     """Upload media file (image/video/audio/document) for campaign messages. Max 25 MB."""
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
