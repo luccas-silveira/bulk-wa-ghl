@@ -19,9 +19,11 @@ RUN npm ci
 # Copy source code
 COPY --chown=node:node . .
 
-# Build argument for API URL
+# Build arguments
 ARG VITE_API_URL=http://localhost:8000
+ARG VITE_BASE_PATH=/
 ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_BASE_PATH=$VITE_BASE_PATH
 
 # Build application
 RUN npm run build

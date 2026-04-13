@@ -71,6 +71,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_BASE_PATH: ${VITE_BASE_PATH:-/}
     container_name: wpp_disp_frontend
     ports:
       - "${FRONTEND_PORT:-3001}:80"
