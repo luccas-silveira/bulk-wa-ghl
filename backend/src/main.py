@@ -273,20 +273,24 @@ if metrics_enabled:
 
 @app.get("/docs-status")
 async def docs_status():
-    """Status da implementação"""
+    """Status da implementação — lista endpoints registrados."""
+    core_endpoints = [
+        "POST /api/v1/campaigns - Criar campanha",
+        "GET /api/v1/campaigns - Listar campanhas",
+        "GET /api/v1/analytics/dashboard - Dashboard de métricas",
+        "GET /health - Health check",
+        "GET /docs - Documentação Swagger",
+    ]
+    ghl_endpoints = [
+        "GET /ghl/locations - Listar locations GHL",
+        "GET /ghl/users - Listar usuários GHL",
+        "POST /ghl/oauth/callback - Callback OAuth GHL",
+        "POST /ghl/webhooks - Receber webhooks GHL",
+    ]
     return {
         "provider": "GoHighLevel (GHL)",
-        "endpoints": [
-            "POST /api/v1/campaigns - Criar campanha",
-            "GET /api/v1/campaigns - Listar campanhas",
-            "GET /api/v1/analytics/dashboard - Dashboard de métricas",
-            "GET /ghl/locations - Listar locations GHL",
-            "GET /ghl/users - Listar usuários GHL",
-            "POST /ghl/oauth/callback - Callback OAuth GHL",
-            "POST /ghl/webhooks - Receber webhooks GHL",
-            "GET /health - Health check",
-            "GET /docs - Documentação Swagger"
-        ]
+        "ghl_enabled": GHL_ENABLED,
+        "endpoints": core_endpoints + (ghl_endpoints if GHL_ENABLED else []),
     }
 
 if __name__ == "__main__":
