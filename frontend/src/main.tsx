@@ -159,15 +159,19 @@ const AppRoutes: React.FC = () => {
       <Route
         path="/embedded"
         element={
-          <EmbeddedRoute
-            onCreateCampaign={() => navigate('/embedded/new')}
-          />
+          <ProtectedRoute>
+            <EmbeddedRoute
+              onCreateCampaign={() => navigate('/embedded/new')}
+            />
+          </ProtectedRoute>
         }
       />
       <Route
         path="/embedded/new"
         element={
-          <EmbeddedNewRoute onCancel={() => navigate('/embedded')} />
+          <ProtectedRoute>
+            <EmbeddedNewRoute onCancel={() => navigate('/embedded')} />
+          </ProtectedRoute>
         }
       />
       <Route path="*" element={<NotFound />} />
