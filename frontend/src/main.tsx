@@ -6,11 +6,13 @@ import Dashboard from './components/dashboard/Dashboard'
 import CampaignWizard from './components/campaign/CampaignWizard'
 import CampaignsPage from './pages/CampaignsPage'
 import Layout from './components/layout/Layout'
+import EmbeddedLayout from './components/layout/EmbeddedLayout'
 import ErrorBoundary from './components/ErrorBoundary'
 import NotFound from './components/NotFound'
 import { ToastProvider, useToast } from './components/ui/Toast'
 import { CampaignCreateRequest } from './types/api'
 import { API_BASE_URL } from './config/env'
+import { useEmbeddedMode } from './hooks/useEmbeddedMode'
 import './index.css'
 import { initSentry } from './config/sentry'
 
@@ -31,6 +33,40 @@ const queryClient = new QueryClient({
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return <>{children}</>
 }
+
+const EmbeddedRoute: React.FC<{ onCreateCampaign: () => void }> = ({ onCreateCampaign }) => {
+  const { ghlLocationId } = useEmbeddedMode();
+  return (
+    <EmbeddedLayout>
+      <CampaignsPage
+        onCreateCampaign={onCreateCampaign}
+        defaultLocationId={ghlLocationId ?? undefined}
+      />
+    </EmbeddedLayout>
+  );
+};
+
+const EmbeddedNewRoute: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
+  return (
+    <EmbeddedLayout>
+      <CampaignWizard
+        onSubmit={async (data) => {
+          const response = await fetch(`${API_BASE_URL}/api/v1/campaigns`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          });
+          if (!response.ok) {
+            const body = await response.json().catch(() => ({}));
+            throw new Error(body?.detail?.message || 'Falha ao criar campanha');
+          }
+          onCancel();
+        }}
+        onCancel={onCancel}
+      />
+    </EmbeddedLayout>
+  );
+};
 
 const AppRoutes: React.FC = () => {
   const navigate = useNavigate()
@@ -118,6 +154,20 @@ const AppRoutes: React.FC = () => {
               </div>
             </Layout>
           </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/embedded"
+        element={
+          <EmbeddedRoute
+            onCreateCampaign={() => navigate('/embedded/new')}
+          />
+        }
+      />
+      <Route
+        path="/embedded/new"
+        element={
+          <EmbeddedNewRoute onCancel={() => navigate('/embedded')} />
         }
       />
       <Route path="*" element={<NotFound />} />

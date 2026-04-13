@@ -13,13 +13,14 @@ import type { CampaignStatus } from '../types/campaign';
 
 export interface CampaignsPageProps {
   onCreateCampaign?: () => void;
+  defaultLocationId?: string;
 }
 
 const VALID_STATUSES: CampaignStatus[] = [
   'draft', 'scheduled', 'executing', 'paused', 'completed', 'failed', 'cancelled',
 ];
 
-const CampaignsPage: React.FC<CampaignsPageProps> = ({ onCreateCampaign }) => {
+const CampaignsPage: React.FC<CampaignsPageProps> = ({ onCreateCampaign, defaultLocationId }) => {
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
   const [searchParams] = useSearchParams();
 
@@ -61,7 +62,10 @@ const CampaignsPage: React.FC<CampaignsPageProps> = ({ onCreateCampaign }) => {
 
       {/* Campaign List */}
       <CampaignList
-        defaultFilters={statusFilter ? { status: statusFilter } : {}}
+        defaultFilters={{
+          ...(statusFilter ? { status: statusFilter } : {}),
+          ...(defaultLocationId ? { ghl_location_id: defaultLocationId } : {}),
+        }}
         onCampaignClick={(campaignId) => setSelectedCampaignId(campaignId)}
       />
     </div>
