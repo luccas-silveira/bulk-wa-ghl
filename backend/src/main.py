@@ -42,6 +42,7 @@ from src.api.ghl_webhooks import router as ghl_webhooks_router
 from src.api.ghl_users import router as ghl_users_router
 from src.api import analytics
 from src.api import campaign_management
+from src.api.media_upload import router as media_upload_router
 
 setup_logging()
 
@@ -150,6 +151,7 @@ if GHL_ENABLED:
 # Always registered
 app.include_router(analytics.router)
 app.include_router(campaign_management.router)
+app.include_router(media_upload_router)
 
 
 # Observability middleware

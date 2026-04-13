@@ -27,3 +27,5 @@ aiosqlite==0.20.0
 
 # Environment variables
 python-dotenv==1.0.0
+aiofiles==23.2.1
+python-multipart==0.0.6
