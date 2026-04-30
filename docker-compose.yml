@@ -42,6 +42,7 @@ services:
       GHL_REDIRECT_URI: ${GHL_REDIRECT_URI:-http://localhost:8000/ghl/oauth/callback}
       GHL_TOKEN_ENCRYPTION_KEY: ${GHL_TOKEN_ENCRYPTION_KEY}
       GHL_WEBHOOK_SECRET: ${GHL_WEBHOOK_SECRET}
+      GHL_PRIVATE_TOKEN: ${GHL_PRIVATE_TOKEN:-}
 
       # Application
       DEBUG: ${DEBUG:-False}
